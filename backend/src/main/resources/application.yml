@@ -1,0 +1,133 @@
+spring:
+  application:
+    name: xiuxian-backend
+
+  # 数据源配置 (MySQL 8.x)
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://192.168.0.113:3306/xiuxian?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: 12345678
+    # HikariCP 连接池配置
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 300000
+      connection-timeout: 20000
+      max-lifetime: 1200000
+
+  # JPA配置（用于数据库表结构验证）
+  jpa:
+    show-sql: false
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQL8Dialect
+
+  # Jackson配置
+  jackson:
+    time-zone: Asia/Shanghai
+    date-format: yyyy-MM-dd HH:mm:ss
+    serialization:
+      write-dates-as-timestamps: false
+
+# MyBatis-Plus 配置
+mybatis-plus:
+  # Mapper XML 文件位置
+  mapper-locations: classpath*:/mapper/**/*.xml
+  # 实体类扫描路径
+  type-aliases-package: com.xiuxian.entity
+  # 全局配置
+  global-config:
+    db-config:
+      # 主键类型（AUTO 自增）
+      id-type: auto
+      # 逻辑删除字段名
+      logic-delete-field: deleted
+      # 逻辑已删除值
+      logic-delete-value: 1
+      # 逻辑未删除值
+      logic-not-delete-value: 0
+      # 表名前缀
+      table-prefix: ""
+  # 配置
+  configuration:
+    # 驼峰转下划线
+    map-underscore-to-camel-case: true
+    # 日志实现
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+    # 缓存
+    cache-enabled: false
+    # 延迟加载
+    lazy-loading-enabled: false
+
+# Spring Boot Actuator 配置
+management:
+  endpoints:
+    web:
+      exposure:
+        # 暴露的端点
+        include: health,info
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+  health:
+    db:
+      enabled: true
+
+# 日志配置
+logging:
+  level:
+    root: INFO
+    com.xiuxian: DEBUG
+    com.xiuxian.mapper: DEBUG
+    org.springframework.web: INFO
+    org.mybatis: DEBUG
+  # Logback配置文件位置
+  config: classpath:logback-spring.xml
+
+# 服务器配置
+server:
+  port: 8080
+  servlet:
+    context-path: /api/v1
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+  # 连接超时
+  connection-timeout: 20000
+
+# 应用配置
+app:
+  # 定时自动保存间隔（秒）
+  auto-save-interval: 30
+  # 体力恢复间隔（秒）
+  stamina-recovery-interval: 60
+  # 灵力恢复间隔（秒）
+  spiritual-power-recovery-interval: 60
+
+  # 属性计算配置（FR-008）
+  attributes:
+    # 基础属性值
+    base:
+      health: 100          # 基础气血值
+      stamina: 100         # 基础体力值
+      spiritual-power: 100 # 基础灵力值
+      crit-rate: 5         # 基础暴击率（%）
+      crit-damage: 150     # 基础暴击伤害（%）
+      speed: 100           # 基础速度值
+    # 属性系数
+    coefficient:
+      constitution: 10     # 体质系数：每点体质增加的气血和体力
+      spirit: 10           # 精神系数：每点精神增加的灵力
+      fortune-crit-rate: 0.5    # 气运暴击率系数：每点气运增加的暴击率（%）
+      fortune-crit-damage: 2    # 气运暴击伤害系数：每点气运增加的暴击伤害（%）
+      fortune-speed: 2           # 气运速度系数：每点气运增加的速度值
+    # 属性上限
+    max:
+      attribute: 999       # 单个属性最大值
+      total-points: 9999   # 总属性点数上限（预留）
