@@ -1,8 +1,17 @@
 package com.xiuxian.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.xiuxian.dto.response.SellItemResponse;
 import com.xiuxian.entity.CharacterInventory;
+import com.xiuxian.entity.Equipment;
+import com.xiuxian.entity.Material;
+import com.xiuxian.entity.Pill;
+import com.xiuxian.entity.PlayerCharacter;
 import com.xiuxian.mapper.CharacterInventoryMapper;
+import com.xiuxian.mapper.EquipmentMapper;
+import com.xiuxian.mapper.MaterialMapper;
+import com.xiuxian.mapper.PillMapper;
+import com.xiuxian.service.CharacterService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,6 +24,7 @@ import java.lang.reflect.Field;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -22,6 +32,18 @@ public class InventoryServiceImplTest {
 
     @Mock
     private CharacterInventoryMapper characterInventoryMapper;
+
+    @Mock
+    private EquipmentMapper equipmentMapper;
+
+    @Mock
+    private MaterialMapper materialMapper;
+
+    @Mock
+    private PillMapper pillMapper;
+
+    @Mock
+    private CharacterService characterService;
 
     @InjectMocks
     private InventoryServiceImpl inventoryService;
@@ -204,5 +226,241 @@ public class InventoryServiceImplTest {
         boolean result = inventoryService.hasEnoughItem(1L, "material", 1L, 5);
 
         assertTrue(result);
+    }
+
+    // ==================== sellItem 测试 ====================
+
+    @Test
+    void sellItem_Success_Equipment() {
+        // 准备测试数据
+        CharacterInventory inventory = new CharacterInventory();
+        inventory.setInventoryId(1L);
+        inventory.setCharacterId(1L);
+        inventory.setItemType("equipment");
+        inventory.setItemId(10L);
+        inventory.setQuantity(3);
+
+        Equipment equipment = new Equipment();
+        equipment.setEquipmentName("铁剑");
+        equipment.setBaseScore(50); // 售价 = 50 * 10 = 500
+
+        PlayerCharacter character = new PlayerCharacter();
+        character.setCharacterId(1L);
+        character.setSpiritStones(1000L);
+
+        // Mock配置 - 使用doCallRealMethod来调用实际方法
+        lenient().when(inventoryService.getById(1L)).thenReturn(inventory);
+        lenient().when(equipmentMapper.selectById(10L)).thenReturn(equipment);
+        lenient().when(characterService.getById(1L)).thenReturn(character);
+        lenient().when(characterService.updateById(any(PlayerCharacter.class))).thenReturn(true);
+
+        // 使用spy来调用实际方法
+        InventoryServiceImpl spyService = org.mockito.Mockito.spy(inventoryService);
+        org.mockito.Mockito.doReturn(true).when(spyService).removeItem(eq(1L), eq("equipment"), eq(10L), eq(1));
+
+        // 执行测试
+        SellItemResponse response = spyService.sellItem(1L, 1L, 1);
+
+        // 验证结果
+        assertNotNull(response);
+        assertEquals("铁剑", response.getItemName());
+        assertEquals(1, response.getQuantity());
+        assertEquals(500L, response.getTotalSpiritStones());
+        assertEquals(1500L, response.getRemainingSpiritStones());
+        assertTrue(response.getMessage().contains("成功出售"));
+
+        // 验证角色灵石已更新
+        assertEquals(1500L, character.getSpiritStones());
+    }
+
+    @Test
+    void sellItem_Success_Material() {
+        // 准备测试数据
+        CharacterInventory inventory = new CharacterInventory();
+        inventory.setInventoryId(2L);
+        inventory.setCharacterId(1L);
+        inventory.setItemType("material");
+        inventory.setItemId(20L);
+        inventory.setQuantity(5);
+
+        Material material = new Material();
+        material.setMaterialName("灵草");
+        material.setMaterialTier(3); // 售价 = 3 * 50 = 150
+
+        PlayerCharacter character = new PlayerCharacter();
+        character.setCharacterId(1L);
+        character.setSpiritStones(500L);
+
+        // Mock配置
+        lenient().when(inventoryService.getById(2L)).thenReturn(inventory);
+        lenient().when(materialMapper.selectById(20L)).thenReturn(material);
+        lenient().when(characterService.getById(1L)).thenReturn(character);
+        lenient().when(characterService.updateById(any(PlayerCharacter.class))).thenReturn(true);
+
+        // 使用spy来调用实际方法
+        InventoryServiceImpl spyService = org.mockito.Mockito.spy(inventoryService);
+        org.mockito.Mockito.doReturn(true).when(spyService).removeItem(eq(1L), eq("material"), eq(20L), eq(2));
+
+        // 执行测试 - 出售2个
+        SellItemResponse response = spyService.sellItem(1L, 2L, 2);
+
+        // 验证结果
+        assertNotNull(response);
+        assertEquals("灵草", response.getItemName());
+        assertEquals(2, response.getQuantity());
+        assertEquals(300L, response.getTotalSpiritStones()); // 150 * 2
+        assertEquals(800L, response.getRemainingSpiritStones()); // 500 + 300
+    }
+
+    @Test
+    void sellItem_Success_Pill() {
+        // 准备测试数据
+        CharacterInventory inventory = new CharacterInventory();
+        inventory.setInventoryId(3L);
+        inventory.setCharacterId(1L);
+        inventory.setItemType("pill");
+        inventory.setItemId(30L);
+        inventory.setQuantity(10);
+
+        Pill pill = new Pill();
+        pill.setPillName("聚气丹");
+        pill.setPillTier(2); // 售价 = 2 * 80 = 160
+
+        PlayerCharacter character = new PlayerCharacter();
+        character.setCharacterId(1L);
+        character.setSpiritStones(0L);
+
+        // Mock配置
+        lenient().when(inventoryService.getById(3L)).thenReturn(inventory);
+        lenient().when(pillMapper.selectById(30L)).thenReturn(pill);
+        lenient().when(characterService.getById(1L)).thenReturn(character);
+        lenient().when(characterService.updateById(any(PlayerCharacter.class))).thenReturn(true);
+
+        // 使用spy来调用实际方法
+        InventoryServiceImpl spyService = org.mockito.Mockito.spy(inventoryService);
+        org.mockito.Mockito.doReturn(true).when(spyService).removeItem(eq(1L), eq("pill"), eq(30L), eq(5));
+
+        // 执行测试 - 出售5个
+        SellItemResponse response = spyService.sellItem(1L, 3L, 5);
+
+        // 验证结果
+        assertNotNull(response);
+        assertEquals("聚气丹", response.getItemName());
+        assertEquals(5, response.getQuantity());
+        assertEquals(800L, response.getTotalSpiritStones()); // 160 * 5
+        assertEquals(800L, response.getRemainingSpiritStones()); // 0 + 800
+    }
+
+    @Test
+    void sellItem_ItemNotExists() {
+        // Mock配置 - 物品不存在
+        when(inventoryService.getById(999L)).thenReturn(null);
+
+        // 执行测试并验证异常
+        assertThrows(com.xiuxian.common.exception.BusinessException.class, () -> {
+            inventoryService.sellItem(1L, 999L, 1);
+        });
+    }
+
+    @Test
+    void sellItem_UnauthorizedAccess() {
+        // 准备测试数据 - 物品属于其他角色
+        CharacterInventory inventory = new CharacterInventory();
+        inventory.setInventoryId(1L);
+        inventory.setCharacterId(999L); // 属于角色999
+
+        // Mock配置
+        when(inventoryService.getById(1L)).thenReturn(inventory);
+
+        // 执行测试并验证异常
+        assertThrows(com.xiuxian.common.exception.BusinessException.class, () -> {
+            inventoryService.sellItem(1L, 1L, 1); // 角色1尝试出售角色999的物品
+        });
+    }
+
+    @Test
+    void sellItem_InvalidQuantity_Zero() {
+        // 准备测试数据
+        CharacterInventory inventory = new CharacterInventory();
+        inventory.setInventoryId(1L);
+        inventory.setCharacterId(1L);
+        inventory.setItemType("equipment");
+        inventory.setItemId(10L);
+        inventory.setQuantity(5);
+
+        // Mock配置
+        when(inventoryService.getById(1L)).thenReturn(inventory);
+
+        // 执行测试并验证异常
+        assertThrows(com.xiuxian.common.exception.BusinessException.class, () -> {
+            inventoryService.sellItem(1L, 1L, 0); // 数量为0
+        });
+    }
+
+    @Test
+    void sellItem_InvalidQuantity_Negative() {
+        // 准备测试数据
+        CharacterInventory inventory = new CharacterInventory();
+        inventory.setInventoryId(1L);
+        inventory.setCharacterId(1L);
+        inventory.setItemType("equipment");
+        inventory.setItemId(10L);
+        inventory.setQuantity(5);
+
+        // Mock配置
+        when(inventoryService.getById(1L)).thenReturn(inventory);
+
+        // 执行测试并验证异常
+        assertThrows(com.xiuxian.common.exception.BusinessException.class, () -> {
+            inventoryService.sellItem(1L, 1L, -1); // 负数
+        });
+    }
+
+    @Test
+    void sellItem_ExceedsOwnedQuantity() {
+        // 准备测试数据 - 只有3个
+        CharacterInventory inventory = new CharacterInventory();
+        inventory.setInventoryId(1L);
+        inventory.setCharacterId(1L);
+        inventory.setItemType("equipment");
+        inventory.setItemId(10L);
+        inventory.setQuantity(3);
+
+        // Mock配置
+        when(inventoryService.getById(1L)).thenReturn(inventory);
+
+        // 执行测试并验证异常
+        assertThrows(com.xiuxian.common.exception.BusinessException.class, () -> {
+            inventoryService.sellItem(1L, 1L, 5); // 尝试出售5个
+        });
+    }
+
+    @Test
+    void sellItem_CharacterNotExists() {
+        // 准备测试数据
+        CharacterInventory inventory = new CharacterInventory();
+        inventory.setInventoryId(1L);
+        inventory.setCharacterId(1L);
+        inventory.setItemType("equipment");
+        inventory.setItemId(10L);
+        inventory.setQuantity(3);
+
+        Equipment equipment = new Equipment();
+        equipment.setEquipmentName("铁剑");
+        equipment.setBaseScore(50);
+
+        // Mock配置
+        lenient().when(inventoryService.getById(1L)).thenReturn(inventory);
+        lenient().when(equipmentMapper.selectById(10L)).thenReturn(equipment);
+        lenient().when(characterService.getById(1L)).thenReturn(null); // 角色不存在
+
+        // 使用spy来调用实际方法
+        InventoryServiceImpl spyService = org.mockito.Mockito.spy(inventoryService);
+        org.mockito.Mockito.doReturn(true).when(spyService).removeItem(eq(1L), eq("equipment"), eq(10L), eq(1));
+
+        // 执行测试并验证异常
+        assertThrows(com.xiuxian.common.exception.BusinessException.class, () -> {
+            spyService.sellItem(1L, 1L, 1);
+        });
     }
 }
