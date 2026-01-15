@@ -2119,9 +2119,9 @@ public class XiuxianGameClient {
 
                 // 显示物品列表
                 System.out.println("\n背包物品列表:");
-                System.out.println("┌──────┬────────────────────┬────────────────┬──────┐");
-                System.out.println("│ 序号 │ 物品名称          │ 详细信息       │ 数量 │");
-                System.out.println("├──────┼────────────────────┼────────────────┼──────┤");
+                System.out.println("┌──────┬──────────────────┬─────────────────────────────┬──────┐");
+                System.out.println("│ 序号 │ 物品名称        │ 详细信息                   │ 数量 │");
+                System.out.println("├──────┼──────────────────┼─────────────────────────────┼──────┤");
 
                 for (int i = 0; i < items.size(); i++) {
                     JsonObject item = items.get(i).getAsJsonObject();
@@ -2133,17 +2133,22 @@ public class XiuxianGameClient {
 
                     // 截断过长的字符串
                     if (name.length() > 16) name = name.substring(0, 14) + "..";
-                    if (detail.length() > 14) detail = detail.substring(0, 12) + "..";
+                    if (detail.length() > 25) detail = detail.substring(0, 23) + "..";
 
-                    System.out.printf("│ %4d │ %-16s │ %-14s │ %4d │ (ID:%d)%n",
+                    System.out.printf("│ %4d │ %-16s │ %-25s │ %4d │ (ID:%d)%n",
                             index, name, detail, quantity, inventoryId);
                 }
 
-                System.out.println("└──────┴────────────────────┴────────────────┴──────┘");
+                System.out.println("└──────┴──────────────────┴─────────────────────────────┴──────┘");
 
                 // 输入序号
-                System.out.print("\n请输入要出售的物品序号 (输入0返回): ");
+                System.out.print("\n请输入要出售的物品序号 (直接回车返回): ");
                 String indexStr = scanner.nextLine().trim();
+
+                // 空输入直接返回
+                if (indexStr.isEmpty()) {
+                    return;
+                }
 
                 if (indexStr.equals("0")) {
                     return;
@@ -2164,8 +2169,13 @@ public class XiuxianGameClient {
 
                     // 输入数量
                     System.out.printf("\n已选择: %s (拥有数量: %d)\n", itemName, maxQuantity);
-                    System.out.print("请输入出售数量 (输入0返回): ");
+                    System.out.print("请输入出售数量 (直接回车返回): ");
                     String quantityStr = scanner.nextLine().trim();
+
+                    // 空输入直接返回
+                    if (quantityStr.isEmpty()) {
+                        return;
+                    }
 
                     if (quantityStr.equals("0")) {
                         return;
