@@ -484,9 +484,9 @@ public class XiuxianGameClient {
             System.out.println("│  3. 📊 查看突破成功率                  │");
             System.out.println("│  0. 🔙 返回主菜单                      │");
             System.out.println("└────────────────────────────────────────┘");
-            System.out.print("\n请选择: ");
+            System.out.print("\n请选择 (直接回车返回主菜单): ");
 
-            String choice = scanner.nextLine();
+            String choice = readMenuChoice();
 
             switch (choice) {
                 case "1":
@@ -709,9 +709,9 @@ public class XiuxianGameClient {
             System.out.println("│  4. 查看战斗记录                     │");
             System.out.println("│  0. 返回主菜单                       │");
             System.out.println("└──────────────────────────────────────┘");
-            System.out.print("\n请选择: ");
+            System.out.print("\n请选择 (直接回车返回主菜单): ");
 
-            String choice = scanner.nextLine();
+            String choice = readMenuChoice();
 
             switch (choice) {
                 case "1": showMonsters(); break;
@@ -934,9 +934,9 @@ public class XiuxianGameClient {
             System.out.println("│  4. 查看我的材料                     │");
             System.out.println("│  0. 返回主菜单                       │");
             System.out.println("└──────────────────────────────────────┘");
-            System.out.print("\n请选择: ");
+            System.out.print("\n请选择 (直接回车返回主菜单): ");
 
-            String choice = scanner.nextLine();
+            String choice = readMenuChoice();
 
             switch (choice) {
                 case "1": showPillRecipes(); break;
@@ -1069,9 +1069,9 @@ public class XiuxianGameClient {
             System.out.println("│  3. 查看锻造记录                     │");
             System.out.println("│  0. 返回主菜单                       │");
             System.out.println("└──────────────────────────────────────┘");
-            System.out.print("\n请选择: ");
+            System.out.print("\n请选择 (直接回车返回主菜单): ");
 
-            String choice = scanner.nextLine();
+            String choice = readMenuChoice();
 
             switch (choice) {
                 case "1": showEquipmentRecipes(); break;
@@ -1174,9 +1174,9 @@ public class XiuxianGameClient {
             System.out.println("│  5. 升级技能                         │");
             System.out.println("│  0. 返回主菜单                       │");
             System.out.println("└──────────────────────────────────────┘");
-            System.out.print("\n请选择: ");
+            System.out.print("\n请选择 (直接回车返回主菜单): ");
 
-            String choice = scanner.nextLine();
+            String choice = readMenuChoice();
 
             switch (choice) {
                 case "1": showAvailableSkills(); break;
@@ -1361,9 +1361,9 @@ public class XiuxianGameClient {
             System.out.println("│  3. 查看探索记录                     │");
             System.out.println("│  0. 返回主菜单                       │");
             System.out.println("└──────────────────────────────────────┘");
-            System.out.print("\n请选择: ");
+            System.out.print("\n请选择 (直接回车返回主菜单): ");
 
-            String choice = scanner.nextLine();
+            String choice = readMenuChoice();
 
             switch (choice) {
                 case "1": showExplorationAreas(); break;
@@ -1473,9 +1473,9 @@ public class XiuxianGameClient {
             System.out.println("│  5. 购买物品                         │");
             System.out.println("│  0. 返回主菜单                       │");
             System.out.println("└──────────────────────────────────────┘");
-            System.out.print("\n请选择: ");
+            System.out.print("\n请选择 (直接回车返回主菜单): ");
 
-            String choice = scanner.nextLine();
+            String choice = readMenuChoice();
 
             switch (choice) {
                 case "1": showSectList(); break;
@@ -1634,9 +1634,9 @@ public class XiuxianGameClient {
             System.out.println("│  5. 🎒 查看背包                       │");
             System.out.println("│  0. 返回主菜单                       │");
             System.out.println("└──────────────────────────────────────┘");
-            System.out.print("\n请选择: ");
+            System.out.print("\n请选择 (直接回车返回主菜单): ");
 
-            String choice = scanner.nextLine();
+            String choice = readMenuChoice();
 
             switch (choice) {
                 case "1": showEquippedItems(); break;
@@ -1982,9 +1982,9 @@ public class XiuxianGameClient {
             System.out.println("│  5. 背包统计                         │");
             System.out.println("│  0. 返回上级菜单                     │");
             System.out.println("└──────────────────────────────────────┘");
-            System.out.print("\n请选择: ");
+            System.out.print("\n请选择 (直接回车返回上级): ");
 
-            String choice = scanner.nextLine();
+            String choice = readMenuChoice();
 
             switch (choice) {
                 case "1": showInventoryItems(null); break;
@@ -2081,6 +2081,17 @@ public class XiuxianGameClient {
         }
 
         pressEnterToContinue();
+    }
+
+    /**
+     * 读取菜单选择，如果输入为空则返回"0"（返回上级）
+     */
+    private static String readMenuChoice() {
+        String choice = scanner.nextLine().trim();
+        if (choice.isEmpty()) {
+            return "0";  // 空输入视为返回上级
+        }
+        return choice;
     }
 
     /**
