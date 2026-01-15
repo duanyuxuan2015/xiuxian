@@ -2086,6 +2086,59 @@ public class XiuxianGameClient {
     }
 
     /**
+     * 计算物品出售单价
+     */
+    private static long calculateSellPrice(String itemType, String detail) {
+        if (detail == null || detail.isEmpty()) {
+            return 0L;
+        }
+
+        try {
+            switch (itemType) {
+                case "equipment":
+                    // 装备: 评分 × 10
+                    // detail格式: "武器 | 稀有 | 评分:300"
+                    if (detail.contains("评分:")) {
+                        int scoreIndex = detail.indexOf("评分:");
+                        String scoreStr = detail.substring(scoreIndex + 3).trim();
+                        // 提取数字，去除可能的非数字字符
+                        scoreStr = scoreStr.replaceAll("[^0-9]", "");
+                        if (!scoreStr.isEmpty()) {
+                            int score = Integer.parseInt(scoreStr);
+                            return score * 10L;
+                        }
+                    }
+                    return 0L;
+
+                case "material":
+                    // 材料: 阶数 × 50
+                    // detail格式: "3阶 | 普通"
+                    if (detail.contains("阶")) {
+                        String tierStr = detail.substring(0, detail.indexOf("阶")).trim();
+                        int tier = Integer.parseInt(tierStr);
+                        return tier * 50L;
+                    }
+                    return 0L;
+
+                case "pill":
+                    // 丹药: 阶数 × 80
+                    // detail格式: "2阶 | 精良"
+                    if (detail.contains("阶")) {
+                        String tierStr = detail.substring(0, detail.indexOf("阶")).trim();
+                        int tier = Integer.parseInt(tierStr);
+                        return tier * 80L;
+                    }
+                    return 0L;
+
+                default:
+                    return 10L; // 默认价格
+            }
+        } catch (Exception e) {
+            return 0L;
+        }
+    }
+
+    /**
      * 读取菜单选择，如果输入为空则返回"0"（返回上级）
      */
     private static String readMenuChoice() {
@@ -2119,9 +2172,9 @@ public class XiuxianGameClient {
 
                 // 显示物品列表
                 System.out.println("\n背包物品列表:");
-                System.out.println("┌──────┬──────────────────┬─────────────────────────────┬──────┐");
-                System.out.println("│ 序号 │ 物品名称        │ 详细信息                   │ 数量 │");
-                System.out.println("├──────┼──────────────────┼─────────────────────────────┼──────┤");
+                System.out.println("┌──────┬──────────────────┬─────────────────────────────┬──────┬──────────┐");
+                System.out.println("│ 序号 │ 物品名称        │ 详细信息                   │ 数量 │ 单价(灵石)│");
+                System.out.println("├──────┼──────────────────┼─────────────────────────────┼──────┼──────────┤");
 
                 for (int i = 0; i < items.size(); i++) {
                     JsonObject item = items.get(i).getAsJsonObject();
@@ -2130,16 +2183,20 @@ public class XiuxianGameClient {
                     String detail = item.has("itemDetail") ? item.get("itemDetail").getAsString() : "";
                     int quantity = item.has("quantity") ? item.get("quantity").getAsInt() : 1;
                     long inventoryId = item.has("inventoryId") ? item.get("inventoryId").getAsLong() : 0;
+                    String itemType = item.has("itemType") ? item.get("itemType").getAsString() : "";
+
+                    // 计算单价
+                    long unitPrice = calculateSellPrice(itemType, detail);
 
                     // 截断过长的字符串
                     if (name.length() > 16) name = name.substring(0, 14) + "..";
                     if (detail.length() > 25) detail = detail.substring(0, 23) + "..";
 
-                    System.out.printf("│ %4d │ %-16s │ %-25s │ %4d │ (ID:%d)%n",
-                            index, name, detail, quantity, inventoryId);
+                    System.out.printf("│ %4d │ %-16s │ %-25s │ %4d │ %8d │ (ID:%d)%n",
+                            index, name, detail, quantity, unitPrice, inventoryId);
                 }
 
-                System.out.println("└──────┴──────────────────┴─────────────────────────────┴──────┘");
+                System.out.println("└──────┴──────────────────┴─────────────────────────────┴──────┴──────────┘");
 
                 // 输入序号
                 System.out.print("\n请输入要出售的物品序号 (直接回车返回): ");
