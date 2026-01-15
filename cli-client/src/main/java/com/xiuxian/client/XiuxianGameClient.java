@@ -151,7 +151,8 @@ public class XiuxianGameClient {
         System.out.println("│  8. 📜 技能管理                        │");
         System.out.println("│  9. 🗺️ 探索秘境                        │");
         System.out.println("│ 10. 🏛️ 宗门功能                        │");
-        System.out.println("│ 11. 🎒 装备管理                        │");
+        System.out.println("│ 11. 🛡️ 装备管理                        │");
+        System.out.println("│ 12. 🎒 背包管理                        │");
         System.out.println("│  0. 🚪 退出登录                        │");
         System.out.println("└────────────────────────────────────────┘");
         System.out.print("\n请选择: ");
@@ -171,6 +172,7 @@ public class XiuxianGameClient {
                 case "9": showExplorationMenu(); break;
                 case "10": showSectMenu(); break;
                 case "11": showEquipmentMenu(); break;
+                case "12": showInventory(); break;
                 case "0":
                     currentCharacterId = null;
                     currentCharacter = null;
@@ -1631,7 +1633,6 @@ public class XiuxianGameClient {
             System.out.println("│  2. 装备物品                         │");
             System.out.println("│  3. 卸下装备                         │");
             System.out.println("│  4. 查看装备加成                     │");
-            System.out.println("│  5. 🎒 查看背包                       │");
             System.out.println("│  0. 返回主菜单                       │");
             System.out.println("└──────────────────────────────────────┘");
             System.out.print("\n请选择 (直接回车返回主菜单): ");
@@ -1643,7 +1644,6 @@ public class XiuxianGameClient {
                 case "2": equipItem(); break;
                 case "3": unequipItem(); break;
                 case "4": showEquipmentBonus(); break;
-                case "5": showInventory(); break;
                 case "0": return;
                 default: System.out.println("\n无效选择！");
             }
@@ -1980,9 +1980,9 @@ public class XiuxianGameClient {
             System.out.println("│  3. 只看材料                         │");
             System.out.println("│  4. 只看丹药                         │");
             System.out.println("│  5. 背包统计                         │");
-            System.out.println("│  0. 返回上级菜单                     │");
+            System.out.println("│  0. 返回主菜单                       │");
             System.out.println("└──────────────────────────────────────┘");
-            System.out.print("\n请选择 (直接回车返回上级): ");
+            System.out.print("\n请选择 (直接回车返回主菜单): ");
 
             String choice = readMenuChoice();
 
