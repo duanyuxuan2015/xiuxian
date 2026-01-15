@@ -3,6 +3,7 @@ package com.xiuxian.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.xiuxian.common.response.Result;
 import com.xiuxian.dto.response.InventoryItemResponse;
+import com.xiuxian.dto.response.SellItemResponse;
 import com.xiuxian.entity.CharacterInventory;
 import com.xiuxian.entity.Equipment;
 import com.xiuxian.entity.Material;
@@ -17,6 +18,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -180,6 +183,61 @@ public class InventoryController {
         summary.setPillCount(pillCount);
 
         return Result.success(summary);
+    }
+
+    /**
+     * 出售物品
+     * POST /api/v1/inventory/sell
+     */
+    @PostMapping("/sell")
+    public Result<SellItemResponse> sellItem(@RequestBody SellItemRequest request) {
+        logger.info("收到出售请求: characterId={}, inventoryId={}, quantity={}",
+                request.getCharacterId(), request.getInventoryId(), request.getQuantity());
+
+        try {
+            SellItemResponse response = inventoryService.sellItem(
+                    request.getCharacterId(),
+                    request.getInventoryId(),
+                    request.getQuantity()
+            );
+            return Result.success(response);
+        } catch (Exception e) {
+            logger.error("出售物品失败: {}", e.getMessage(), e);
+            return Result.error(3000, "出售失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 出售请求DTO
+     */
+    public static class SellItemRequest {
+        private Long characterId;
+        private Long inventoryId;
+        private Integer quantity;
+
+        public Long getCharacterId() {
+            return characterId;
+        }
+
+        public void setCharacterId(Long characterId) {
+            this.characterId = characterId;
+        }
+
+        public Long getInventoryId() {
+            return inventoryId;
+        }
+
+        public void setInventoryId(Long inventoryId) {
+            this.inventoryId = inventoryId;
+        }
+
+        public Integer getQuantity() {
+            return quantity;
+        }
+
+        public void setQuantity(Integer quantity) {
+            this.quantity = quantity;
+        }
     }
 
     /**

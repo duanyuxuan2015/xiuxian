@@ -1,6 +1,7 @@
 package com.xiuxian.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.xiuxian.dto.response.SellItemResponse;
 import com.xiuxian.entity.CharacterInventory;
 
 /**
@@ -45,4 +46,13 @@ public interface InventoryService extends IService<CharacterInventory> {
      * @return 是否足够
      */
     boolean hasEnoughItem(Long characterId, String itemType, Long itemId, int quantity);
+
+    /**
+     * 售出物品
+     * @param characterId 角色ID
+     * @param inventoryId 背包物品ID
+     * @param quantity 售出数量
+     * @return 售出结果
+     */
+    SellItemResponse sellItem(Long characterId, Long inventoryId, Integer quantity);
 }

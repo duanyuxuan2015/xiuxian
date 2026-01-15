@@ -1980,6 +1980,7 @@ public class XiuxianGameClient {
             System.out.println("│  3. 只看材料                         │");
             System.out.println("│  4. 只看丹药                         │");
             System.out.println("│  5. 背包统计                         │");
+            System.out.println("│  6. 💰 一键售出                       │");
             System.out.println("│  0. 返回主菜单                       │");
             System.out.println("└──────────────────────────────────────┘");
             System.out.print("\n请选择 (直接回车返回主菜单): ");
@@ -1992,6 +1993,7 @@ public class XiuxianGameClient {
                 case "3": showInventoryItems("material"); break;
                 case "4": showInventoryItems("pill"); break;
                 case "5": showInventorySummary(); break;
+                case "6": sellInventoryItem(); break;
                 case "0": return;
                 default: System.out.println("\n无效选择！");
             }
@@ -2092,6 +2094,142 @@ public class XiuxianGameClient {
             return "0";  // 空输入视为返回上级
         }
         return choice;
+    }
+
+    /**
+     * 售出背包物品
+     */
+    private static void sellInventoryItem() throws IOException, InterruptedException {
+        System.out.println("\n--- 💰 一键售出 ---");
+
+        // 先显示背包物品
+        System.out.println("\n正在加载背包物品...");
+        String response = ApiClient.get("/inventory/character/" + currentCharacterId);
+
+        JsonObject jsonObject = gson.fromJson(response, JsonObject.class);
+        if (jsonObject.has("code") && jsonObject.get("code").getAsInt() == 200) {
+            if (jsonObject.has("data") && jsonObject.get("data").isJsonArray()) {
+                JsonArray items = jsonObject.get("data").getAsJsonArray();
+
+                if (items.size() == 0) {
+                    System.out.println("\n背包为空，没有物品可出售！");
+                    pressEnterToContinue();
+                    return;
+                }
+
+                // 显示物品列表
+                System.out.println("\n背包物品列表:");
+                System.out.println("┌──────┬────────────────────┬────────────────┬──────┐");
+                System.out.println("│ 序号 │ 物品名称          │ 详细信息       │ 数量 │");
+                System.out.println("├──────┼────────────────────┼────────────────┼──────┤");
+
+                for (int i = 0; i < items.size(); i++) {
+                    JsonObject item = items.get(i).getAsJsonObject();
+                    int index = i + 1;
+                    String name = item.has("itemName") ? item.get("itemName").getAsString() : "未知";
+                    String detail = item.has("itemDetail") ? item.get("itemDetail").getAsString() : "";
+                    int quantity = item.has("quantity") ? item.get("quantity").getAsInt() : 1;
+                    long inventoryId = item.has("inventoryId") ? item.get("inventoryId").getAsLong() : 0;
+
+                    // 截断过长的字符串
+                    if (name.length() > 16) name = name.substring(0, 14) + "..";
+                    if (detail.length() > 14) detail = detail.substring(0, 12) + "..";
+
+                    System.out.printf("│ %4d │ %-16s │ %-14s │ %4d │ (ID:%d)%n",
+                            index, name, detail, quantity, inventoryId);
+                }
+
+                System.out.println("└──────┴────────────────────┴────────────────┴──────┘");
+
+                // 输入序号
+                System.out.print("\n请输入要出售的物品序号 (输入0返回): ");
+                String indexStr = scanner.nextLine().trim();
+
+                if (indexStr.equals("0")) {
+                    return;
+                }
+
+                try {
+                    int index = Integer.parseInt(indexStr);
+                    if (index < 1 || index > items.size()) {
+                        System.out.println("\n❌ 无效的序号！");
+                        pressEnterToContinue();
+                        return;
+                    }
+
+                    JsonObject selectedItem = items.get(index - 1).getAsJsonObject();
+                    long inventoryId = selectedItem.get("inventoryId").getAsLong();
+                    String itemName = selectedItem.get("itemName").getAsString();
+                    int maxQuantity = selectedItem.has("quantity") ? selectedItem.get("quantity").getAsInt() : 1;
+
+                    // 输入数量
+                    System.out.printf("\n已选择: %s (拥有数量: %d)\n", itemName, maxQuantity);
+                    System.out.print("请输入出售数量 (输入0返回): ");
+                    String quantityStr = scanner.nextLine().trim();
+
+                    if (quantityStr.equals("0")) {
+                        return;
+                    }
+
+                    int quantity = Integer.parseInt(quantityStr);
+                    if (quantity <= 0) {
+                        System.out.println("\n❌ 出售数量必须大于0！");
+                        pressEnterToContinue();
+                        return;
+                    }
+
+                    if (quantity > maxQuantity) {
+                        System.out.printf("\n❌ 出售数量超过拥有数量！(拥有: %d)\n", maxQuantity);
+                        pressEnterToContinue();
+                        return;
+                    }
+
+                    // 确认出售
+                    System.out.printf("\n确认出售 %s x%d ？ (y/n): ", itemName, quantity);
+                    String confirm = scanner.nextLine().trim();
+
+                    if (!confirm.equalsIgnoreCase("y")) {
+                        System.out.println("\n已取消出售。");
+                        pressEnterToContinue();
+                        return;
+                    }
+
+                    // 调用出售API
+                    String sellRequest = String.format("{\"characterId\":%d,\"inventoryId\":%d,\"quantity\":%d}",
+                            currentCharacterId, inventoryId, quantity);
+
+                    System.out.println("\n正在出售...");
+                    String sellResponse = ApiClient.post("/inventory/sell", sellRequest);
+
+                    JsonObject sellJson = gson.fromJson(sellResponse, JsonObject.class);
+                    if (sellJson.has("code") && sellJson.get("code").getAsInt() == 200) {
+                        if (sellJson.has("data")) {
+                            JsonObject data = sellJson.get("data").getAsJsonObject();
+                            long totalStones = data.has("totalSpiritStones") ? data.get("totalSpiritStones").getAsLong() : 0;
+                            long remainingStones = data.has("remainingSpiritStones") ? data.get("remainingSpiritStones").getAsLong() : 0;
+                            String message = data.has("message") ? data.get("message").getAsString() : "出售成功";
+
+                            System.out.println("\n✅ " + message);
+                            System.out.printf("获得灵石: %d | 当前灵石: %d%n", totalStones, remainingStones);
+                        }
+                    } else {
+                        String errorMsg = sellJson.has("message") ? sellJson.get("message").getAsString() : "出售失败";
+                        System.out.println("\n❌ " + errorMsg);
+                    }
+
+                } catch (NumberFormatException e) {
+                    System.out.println("\n❌ 请输入有效的数字！");
+                }
+
+            } else {
+                System.out.println("\n背包为空！");
+            }
+        } else {
+            String errorMsg = jsonObject.has("message") ? jsonObject.get("message").getAsString() : "加载失败";
+            System.out.println("\n❌ " + errorMsg);
+        }
+
+        pressEnterToContinue();
     }
 
     /**
