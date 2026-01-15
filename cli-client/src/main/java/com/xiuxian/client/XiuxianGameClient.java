@@ -1779,9 +1779,14 @@ public class XiuxianGameClient {
 
         // 读取加点输入
         while (true) {
-            System.out.print("\n体质加点 (输入0跳过): ");
+            System.out.print("\n体质加点 (输入0跳过，直接回车默认为0): ");
+            String input = scanner.nextLine().trim();
+            if (input.isEmpty()) {
+                constitutionPoints = 0;
+                break;
+            }
             try {
-                constitutionPoints = Integer.parseInt(scanner.nextLine().trim());
+                constitutionPoints = Integer.parseInt(input);
                 if (constitutionPoints < 0) {
                     System.out.println("不能输入负数！");
                     continue;
@@ -1797,9 +1802,14 @@ public class XiuxianGameClient {
         }
 
         while (true) {
-            System.out.print("精神加点 (输入0跳过): ");
+            System.out.print("精神加点 (输入0跳过，直接回车默认为0): ");
+            String input = scanner.nextLine().trim();
+            if (input.isEmpty()) {
+                spiritPoints = 0;
+                break;
+            }
             try {
-                spiritPoints = Integer.parseInt(scanner.nextLine().trim());
+                spiritPoints = Integer.parseInt(input);
                 if (spiritPoints < 0) {
                     System.out.println("不能输入负数！");
                     continue;
@@ -1815,9 +1825,14 @@ public class XiuxianGameClient {
         }
 
         while (true) {
-            System.out.print("悟性加点 (输入0跳过): ");
+            System.out.print("悟性加点 (输入0跳过，直接回车默认为0): ");
+            String input = scanner.nextLine().trim();
+            if (input.isEmpty()) {
+                comprehensionPoints = 0;
+                break;
+            }
             try {
-                comprehensionPoints = Integer.parseInt(scanner.nextLine().trim());
+                comprehensionPoints = Integer.parseInt(input);
                 if (comprehensionPoints < 0) {
                     System.out.println("不能输入负数！");
                     continue;
@@ -1833,9 +1848,14 @@ public class XiuxianGameClient {
         }
 
         while (true) {
-            System.out.print("机缘加点 (输入0跳过): ");
+            System.out.print("机缘加点 (输入0跳过，直接回车默认为0): ");
+            String input = scanner.nextLine().trim();
+            if (input.isEmpty()) {
+                luckPoints = 0;
+                break;
+            }
             try {
-                luckPoints = Integer.parseInt(scanner.nextLine().trim());
+                luckPoints = Integer.parseInt(input);
                 if (luckPoints < 0) {
                     System.out.println("不能输入负数！");
                     continue;
@@ -1851,9 +1871,14 @@ public class XiuxianGameClient {
         }
 
         while (true) {
-            System.out.print("气运加点 (输入0跳过): ");
+            System.out.print("气运加点 (输入0跳过，直接回车默认为0): ");
+            String input = scanner.nextLine().trim();
+            if (input.isEmpty()) {
+                fortunePoints = 0;
+                break;
+            }
             try {
-                fortunePoints = Integer.parseInt(scanner.nextLine().trim());
+                fortunePoints = Integer.parseInt(input);
                 if (fortunePoints < 0) {
                     System.out.println("不能输入负数！");
                     continue;
