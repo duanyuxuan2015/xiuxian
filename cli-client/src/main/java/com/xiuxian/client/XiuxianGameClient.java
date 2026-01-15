@@ -2046,7 +2046,7 @@ public class XiuxianGameClient {
                 System.out.printf("│ 材料数量: %-5d                           │\n",
                         data.has("materialCount") ? data.get("materialCount").getAsInt() : 0);
                 System.out.printf("│ 丹药数量: %-5d                           │\n",
-                        data.has("pillCount") ? data.getPillCount().getAsInt() : 0);
+                        data.has("pillCount") ? data.get("pillCount").getAsInt() : 0);
                 System.out.println("└─────────────────────────────────────────┘");
             } else {
                 System.out.println("\n暂无统计数据！");
