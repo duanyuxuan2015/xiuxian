@@ -145,7 +145,12 @@ public class CharacterServiceImpl extends ServiceImpl<CharacterMapper, PlayerCha
             sectName = sect != null ? sect.getSectName() : null;
         }
 
-        return CharacterResponse.fromEntity(character, realmName, sectName);
+        // 4. 构建响应，包含攻击力和防御力
+        CharacterResponse response = CharacterResponse.fromEntity(character, realmName, sectName);
+        response.setAttack(calculateAttack(character));
+        response.setDefense(calculateDefense(character));
+
+        return response;
     }
 
     @Override
@@ -219,7 +224,7 @@ public class CharacterServiceImpl extends ServiceImpl<CharacterMapper, PlayerCha
         logger.info("分配属性点成功: characterId={}, constitution={}, spirit={}, comprehension={}, luck={}, fortune={}, remainingPoints={}",
                 character.getCharacterId(), newConstitution, newSpirit, newComprehension, newLuck, newFortune, character.getAvailablePoints());
 
-        // 7. 构造响应
+        // 7. 构造响应（包含衍生属性）
         AllocatePointsResponse response = new AllocatePointsResponse();
         response.setCharacterId(character.getCharacterId());
         response.setPlayerName(character.getPlayerName());
@@ -230,6 +235,17 @@ public class CharacterServiceImpl extends ServiceImpl<CharacterMapper, PlayerCha
         response.setNewFortune(newFortune);
         response.setRemainingPoints(character.getAvailablePoints());
         response.setMessage("属性点分配成功");
+
+        // 填充衍生属性
+        response.setNewAttack(calculateAttack(character));
+        response.setNewDefense(calculateDefense(character));
+        response.setNewHealthMax(character.getHealthMax());
+        response.setNewStaminaMax(character.getStaminaMax());
+        response.setNewSpiritualPowerMax(character.getSpiritualPowerMax());
+        response.setNewCritRate(character.getCritRate());
+        response.setNewCritDamage(character.getCritDamage());
+        response.setNewSpeed(character.getSpeed());
+
         return response;
     }
 
@@ -292,6 +308,11 @@ public class CharacterServiceImpl extends ServiceImpl<CharacterMapper, PlayerCha
         character.setStaminaMax(newStaminaMax);
         character.setSpiritualPowerMax(newSpiritualPowerMax);
 
+        // 更新暴击率、暴击伤害、速度
+        character.setCritRate(critRate);
+        character.setCritDamage(critDamage);
+        character.setSpeed(speed);
+
         // 如果当前值超过新的最大值，则调整为最大值
         if (character.getCurrentHealth() != null && character.getCurrentHealth() > newHealthMax) {
             character.setCurrentHealth(newHealthMax);
@@ -311,5 +332,53 @@ public class CharacterServiceImpl extends ServiceImpl<CharacterMapper, PlayerCha
                 character.getCharacterId(), newHealthMax, newStaminaMax, newSpiritualPowerMax,
                 String.format("%.2f", critRate), String.format("%.2f", critDamage), String.format("%.2f", speed),
                 realmHpBonus, realmSpBonus, realmStaminaBonus);
+    }
+
+    /**
+     * 计算角色攻击力
+     * 攻击力 = 体质 × 攻击力体质系数 + 精神 × 攻击力精神系数 + 境界攻击加成 + (境界层级 - 1) × 层级攻击系数
+     */
+    private int calculateAttack(PlayerCharacter character) {
+        // 从配置读取系数
+        double attackConstitutionCoefficient = attributeProperties.getCoefficient().getAttackConstitution();
+        double attackSpiritCoefficient = attributeProperties.getCoefficient().getAttackSpirit();
+        double attackPerLevel = attributeProperties.getCoefficient().getAttackPerLevel();
+
+        // 基础攻击力 = 体质 × 攻击力体质系数 + 精神 × 攻击力精神系数
+        int baseAttack = (int) (character.getConstitution() * attackConstitutionCoefficient
+                + character.getSpirit() * attackSpiritCoefficient);
+
+        // 获取境界攻击加成
+        Realm realm = realmService.getById(character.getRealmId());
+        int realmAttackBonus = (realm != null && realm.getAttackBonus() != null) ? realm.getAttackBonus() : 0;
+
+        // 境界层级加成（层级从1开始，所以减1，这样第1层没有额外加成）
+        int realmLevel = character.getRealmLevel() != null ? character.getRealmLevel() : 1;
+        int levelAttackBonus = (int) ((realmLevel - 1) * attackPerLevel);
+
+        return baseAttack + realmAttackBonus + levelAttackBonus;
+    }
+
+    /**
+     * 计算角色防御力
+     * 防御力 = 体质 × 防御力体质系数 + 境界防御加成 + (境界层级 - 1) × 层级防御系数
+     */
+    private int calculateDefense(PlayerCharacter character) {
+        // 从配置读取系数
+        double defenseConstitutionCoefficient = attributeProperties.getCoefficient().getDefenseConstitution();
+        double defensePerLevel = attributeProperties.getCoefficient().getDefensePerLevel();
+
+        // 基础防御力 = 体质 × 防御力体质系数
+        int baseDefense = (int) (character.getConstitution() * defenseConstitutionCoefficient);
+
+        // 获取境界防御加成
+        Realm realm = realmService.getById(character.getRealmId());
+        int realmDefenseBonus = (realm != null && realm.getDefenseBonus() != null) ? realm.getDefenseBonus() : 0;
+
+        // 境界层级加成（层级从1开始，所以减1，这样第1层没有额外加成）
+        int realmLevel = character.getRealmLevel() != null ? character.getRealmLevel() : 1;
+        int levelDefenseBonus = (int) ((realmLevel - 1) * defensePerLevel);
+
+        return baseDefense + realmDefenseBonus + levelDefenseBonus;
     }
 }

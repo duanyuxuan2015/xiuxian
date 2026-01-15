@@ -15,6 +15,16 @@ public class AllocatePointsResponse {
     private Integer remainingPoints;
     private String message;
 
+    // 衍生属性
+    private Integer newAttack;
+    private Integer newDefense;
+    private Integer newHealthMax;
+    private Integer newStaminaMax;
+    private Integer newSpiritualPowerMax;
+    private Double newCritRate;
+    private Double newCritDamage;
+    private Double newSpeed;
+
     public AllocatePointsResponse() {
     }
 
@@ -88,5 +98,69 @@ public class AllocatePointsResponse {
 
     public void setMessage(String message) {
         this.message = message;
+    }
+
+    public Integer getNewAttack() {
+        return newAttack;
+    }
+
+    public void setNewAttack(Integer newAttack) {
+        this.newAttack = newAttack;
+    }
+
+    public Integer getNewDefense() {
+        return newDefense;
+    }
+
+    public void setNewDefense(Integer newDefense) {
+        this.newDefense = newDefense;
+    }
+
+    public Integer getNewHealthMax() {
+        return newHealthMax;
+    }
+
+    public void setNewHealthMax(Integer newHealthMax) {
+        this.newHealthMax = newHealthMax;
+    }
+
+    public Integer getNewStaminaMax() {
+        return newStaminaMax;
+    }
+
+    public void setNewStaminaMax(Integer newStaminaMax) {
+        this.newStaminaMax = newStaminaMax;
+    }
+
+    public Integer getNewSpiritualPowerMax() {
+        return newSpiritualPowerMax;
+    }
+
+    public void setNewSpiritualPowerMax(Integer newSpiritualPowerMax) {
+        this.newSpiritualPowerMax = newSpiritualPowerMax;
+    }
+
+    public Double getNewCritRate() {
+        return newCritRate;
+    }
+
+    public void setNewCritRate(Double newCritRate) {
+        this.newCritRate = newCritRate;
+    }
+
+    public Double getNewCritDamage() {
+        return newCritDamage;
+    }
+
+    public void setNewCritDamage(Double newCritDamage) {
+        this.newCritDamage = newCritDamage;
+    }
+
+    public Double getNewSpeed() {
+        return newSpeed;
+    }
+
+    public void setNewSpeed(Double newSpeed) {
+        this.newSpeed = newSpeed;
     }
 }

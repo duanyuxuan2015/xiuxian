@@ -95,6 +95,11 @@ public class AttributeProperties {
         private double fortuneCritRate = 0.5;    // 气运暴击率系数
         private double fortuneCritDamage = 2;    // 气运暴击伤害系数
         private double fortuneSpeed = 2;         // 气运速度系数
+        private double attackConstitution = 2;   // 攻击力体质系数
+        private double attackSpirit = 1;         // 攻击力精神系数
+        private double defenseConstitution = 1.5; // 防御力体质系数
+        private double attackPerLevel = 1;       // 攻击力层级系数：境界每提升1层增加的攻击力
+        private double defensePerLevel = 0.5;    // 防御力层级系数：境界每提升1层增加的防御力
 
         public int getConstitution() {
             return constitution;
@@ -134,6 +139,46 @@ public class AttributeProperties {
 
         public void setFortuneSpeed(double fortuneSpeed) {
             this.fortuneSpeed = fortuneSpeed;
+        }
+
+        public double getAttackConstitution() {
+            return attackConstitution;
+        }
+
+        public void setAttackConstitution(double attackConstitution) {
+            this.attackConstitution = attackConstitution;
+        }
+
+        public double getAttackSpirit() {
+            return attackSpirit;
+        }
+
+        public void setAttackSpirit(double attackSpirit) {
+            this.attackSpirit = attackSpirit;
+        }
+
+        public double getDefenseConstitution() {
+            return defenseConstitution;
+        }
+
+        public void setDefenseConstitution(double defenseConstitution) {
+            this.defenseConstitution = defenseConstitution;
+        }
+
+        public double getAttackPerLevel() {
+            return attackPerLevel;
+        }
+
+        public void setAttackPerLevel(double attackPerLevel) {
+            this.attackPerLevel = attackPerLevel;
+        }
+
+        public double getDefensePerLevel() {
+            return defensePerLevel;
+        }
+
+        public void setDefensePerLevel(double defensePerLevel) {
+            this.defensePerLevel = defensePerLevel;
         }
     }
 

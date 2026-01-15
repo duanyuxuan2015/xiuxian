@@ -26,6 +26,11 @@ public class CharacterResponse {
     private Integer comprehension;
     private Integer luck;
     private Integer fortune;
+    private Double critRate;
+    private Double critDamage;
+    private Double speed;
+    private Integer attack;
+    private Integer defense;
     private Long spiritStones;
     private String sectName;
     private String sectPosition;
@@ -59,6 +64,9 @@ public class CharacterResponse {
         response.setComprehension(character.getComprehension());
         response.setLuck(character.getLuck());
         response.setFortune(character.getFortune());
+        response.setCritRate(character.getCritRate());
+        response.setCritDamage(character.getCritDamage());
+        response.setSpeed(character.getSpeed());
         response.setSpiritStones(character.getSpiritStones());
         response.setSectName(sectName);
         response.setSectPosition(character.getSectPosition());
@@ -213,6 +221,46 @@ public class CharacterResponse {
 
     public void setFortune(Integer fortune) {
         this.fortune = fortune;
+    }
+
+    public Double getCritRate() {
+        return critRate;
+    }
+
+    public void setCritRate(Double critRate) {
+        this.critRate = critRate;
+    }
+
+    public Double getCritDamage() {
+        return critDamage;
+    }
+
+    public void setCritDamage(Double critDamage) {
+        this.critDamage = critDamage;
+    }
+
+    public Double getSpeed() {
+        return speed;
+    }
+
+    public void setSpeed(Double speed) {
+        this.speed = speed;
+    }
+
+    public Integer getAttack() {
+        return attack;
+    }
+
+    public void setAttack(Integer attack) {
+        this.attack = attack;
+    }
+
+    public Integer getDefense() {
+        return defense;
+    }
+
+    public void setDefense(Integer defense) {
+        this.defense = defense;
     }
 
     public Long getSpiritStones() {

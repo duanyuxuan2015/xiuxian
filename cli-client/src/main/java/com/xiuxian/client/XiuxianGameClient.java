@@ -143,14 +143,15 @@ public class XiuxianGameClient {
         System.out.println("├────────────────────────────────────────┤");
         System.out.println("│  1. 👤 查看角色详情                    │");
         System.out.println("│  2. ⭐ 属性加点                        │");
-        System.out.println("│  3. 🧘 修炼修炼                        │");
-        System.out.println("│  4. ⚔️ 战斗妖兽                        │");
-        System.out.println("│  5. ⚗️ 炼制丹药                        │");
-        System.out.println("│  6. 🔨 锻造装备                        │");
-        System.out.println("│  7. 📜 技能管理                        │");
-        System.out.println("│  8. 🗺️ 探索秘境                        │");
-        System.out.println("│  9. 🏛️ 宗门功能                        │");
-        System.out.println("│ 10. 🎒 装备管理                        │");
+        System.out.println("│  3. 🧘‍♂️ 打坐恢复                        │");
+        System.out.println("│  4. 🧘 修炼修炼                        │");
+        System.out.println("│  5. ⚔️ 战斗妖兽                        │");
+        System.out.println("│  6. ⚗️ 炼制丹药                        │");
+        System.out.println("│  7. 🔨 锻造装备                        │");
+        System.out.println("│  8. 📜 技能管理                        │");
+        System.out.println("│  9. 🗺️ 探索秘境                        │");
+        System.out.println("│ 10. 🏛️ 宗门功能                        │");
+        System.out.println("│ 11. 🎒 装备管理                        │");
         System.out.println("│  0. 🚪 退出登录                        │");
         System.out.println("└────────────────────────────────────────┘");
         System.out.print("\n请选择: ");
@@ -161,14 +162,15 @@ public class XiuxianGameClient {
             switch (choice) {
                 case "1": showCharacterDetail(); break;
                 case "2": allocatePoints(); break;
-                case "3": showCultivationMenu(); break;
-                case "4": showCombatMenu(); break;
-                case "5": showAlchemyMenu(); break;
-                case "6": showForgeMenu(); break;
-                case "7": showSkillMenu(); break;
-                case "8": showExplorationMenu(); break;
-                case "9": showSectMenu(); break;
-                case "10": showEquipmentMenu(); break;
+                case "3": startMeditation(); break;
+                case "4": showCultivationMenu(); break;
+                case "5": showCombatMenu(); break;
+                case "6": showAlchemyMenu(); break;
+                case "7": showForgeMenu(); break;
+                case "8": showSkillMenu(); break;
+                case "9": showExplorationMenu(); break;
+                case "10": showSectMenu(); break;
+                case "11": showEquipmentMenu(); break;
                 case "0":
                     currentCharacterId = null;
                     currentCharacter = null;
@@ -427,6 +429,10 @@ public class XiuxianGameClient {
         System.out.printf("║ 体力: %-15s 防御: %-15s              ║\n",
                 formatValue(currentCharacter.getStamina(), "0") + "/" + formatValue(currentCharacter.getStaminaMax(), "0"),
                 formatValue(currentCharacter.getDefense(), "0"));
+        System.out.printf("║ 暴击率: %-10s 暴击伤害: %-10s 速度: %-10s  ║\n",
+                formatDouble(currentCharacter.getCritRate(), "0") + "%",
+                formatDouble(currentCharacter.getCritDamage(), "0") + "%",
+                formatDouble(currentCharacter.getSpeed(), "0"));
         System.out.println("╠══════════════════════════════════════════════════════════════╣");
         System.out.printf("║ 体质: %-3s 精神: %-3s 悟性: %-3s 机缘: %-3s 气运: %-3s ║\n",
                 formatValue(currentCharacter.getConstitution(), "?"),
@@ -449,6 +455,16 @@ public class XiuxianGameClient {
     }
 
     /**
+     * 格式化 Double 值，保留一位小数
+     */
+    private static String formatDouble(Double value, String defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+        return String.format("%.1f", value);
+    }
+
+    /**
      * 格式化等级显示
      */
     private static String formatLevel(Integer level) {
@@ -465,8 +481,7 @@ public class XiuxianGameClient {
             System.out.println("├────────────────────────────────────────┤");
             System.out.println("│  1. 🧘 开始修炼                        │");
             System.out.println("│  2. ⚡ 境界突破                        │");
-            System.out.println("│  3. 🧘‍♂️ 打坐恢复                        │");
-            System.out.println("│  4. 📊 查看突破成功率                  │");
+            System.out.println("│  3. 📊 查看突破成功率                  │");
             System.out.println("│  0. 🔙 返回主菜单                      │");
             System.out.println("└────────────────────────────────────────┘");
             System.out.print("\n请选择: ");
@@ -481,9 +496,6 @@ public class XiuxianGameClient {
                     attemptBreakthrough();
                     break;
                 case "3":
-                    startMeditation();
-                    break;
-                case "4":
                     viewBreakthroughRate();
                     break;
                 case "0":
@@ -693,7 +705,8 @@ public class XiuxianGameClient {
             System.out.println("├──────────────────────────────────────┤");
             System.out.println("│  1. 查看可挑战妖兽                   │");
             System.out.println("│  2. 开始战斗                         │");
-            System.out.println("│  3. 查看战斗记录                     │");
+            System.out.println("│  3. 🤖 挂机战斗                      │");
+            System.out.println("│  4. 查看战斗记录                     │");
             System.out.println("│  0. 返回主菜单                       │");
             System.out.println("└──────────────────────────────────────┘");
             System.out.print("\n请选择: ");
@@ -703,7 +716,8 @@ public class XiuxianGameClient {
             switch (choice) {
                 case "1": showMonsters(); break;
                 case "2": startCombat(); break;
-                case "3": showCombatRecords(); break;
+                case "3": startAutoCombat(); break;
+                case "4": showCombatRecords(); break;
                 case "0": return;
                 default: System.out.println("\n无效选择！");
             }
@@ -731,14 +745,15 @@ public class XiuxianGameClient {
         }
 
         if (monsters != null && !monsters.isEmpty()) {
-            System.out.println("\n序号  妖兽名称              境界      攻击   防御   经验奖励");
+            System.out.println("\nID    妖兽名称              境界      攻击   防御   经验奖励");
             System.out.println("────────────────────────────────────────────────────────────");
             for (int i = 0; i < monsters.size(); i++) {
                 Monster m = monsters.get(i);
                 System.out.printf("%-4d  %-20s  %-8s  %-6d %-6d %-8d\n",
-                        i + 1, m.getMonsterName(), m.getRealmName(),
+                        m.getMonsterId(), m.getMonsterName(), m.getRealmName(),
                         m.getAttack(), m.getDefense(), m.getExpReward());
             }
+            System.out.println("\n提示：输入ID开始战斗（例如：输入1挑战毒蛇）");
         } else {
             System.out.println("\n暂无可挑战的妖兽！");
         }
@@ -784,9 +799,112 @@ public class XiuxianGameClient {
                     System.out.println("\n❌ 战斗失败！");
                     System.out.println("剩余生命: " + result.getCharacterHpRemaining());
                 }
+            } else {
+                System.out.println("\n❌ 战斗失败！可能原因：");
+                System.out.println("  1. 妖兽ID不存在");
+                System.out.println("  2. 体力不足");
+                System.out.println("  3. 角色状态不允许战斗");
+                System.out.println("\n提示：先选择「1. 查看可挑战妖兽」查看有效的妖兽ID");
             }
         } catch (NumberFormatException e) {
-            System.out.println("\n❌ 无效的妖兽ID！");
+            System.out.println("\n❌ 无效的妖兽ID！请输入数字。");
+        } catch (Exception e) {
+            System.out.println("\n❌ 战斗出错: " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        pressEnterToContinue();
+    }
+
+    /**
+     * 挂机战斗
+     */
+    private static void startAutoCombat() throws IOException, InterruptedException {
+        System.out.println("\n--- 🤖 挂机战斗 ---");
+        System.out.print("请输入妖兽ID: ");
+        String monsterIdStr = scanner.nextLine();
+
+        try {
+            Long monsterId = Long.parseLong(monsterIdStr);
+
+            // 统计信息
+            int totalBattles = 0;
+            int victories = 0;
+            int defeats = 0;
+            int totalExpGained = 0;
+            int totalSpiritStonesGained = 0;
+
+            System.out.println("\n🤖 挂机开始！战斗中...");
+            System.out.println("提示：挂机将持续到体力耗尽或战斗失败");
+            System.out.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+
+            boolean continueAuto = true;
+            while (continueAuto) {
+                try {
+                    JsonObject request = new JsonObject();
+                    request.addProperty("characterId", currentCharacterId);
+                    request.addProperty("monsterId", monsterId);
+
+                    String response = ApiClient.post("/combat/start", request);
+                    CombatResponse result = ApiClient.parseResponse(response, CombatResponse.class);
+
+                    if (result != null) {
+                        totalBattles++;
+
+                        if (result.isVictory()) {
+                            victories++;
+                            totalExpGained += result.getExpGained();
+                            totalSpiritStonesGained += result.getSpiritStonesGained();
+
+                            System.out.printf("第%d战 ✅ 胜利！经验+%d 灵石+%d | 体力:%d 气血:%d 灵力:%d\n",
+                                    totalBattles,
+                                    result.getExpGained(),
+                                    result.getSpiritStonesGained(),
+                                    result.getCharacterStaminaRemaining(),
+                                    result.getCharacterHpRemaining(),
+                                    result.getCharacterSpiritualPowerRemaining());
+                        } else {
+                            defeats++;
+                            System.out.printf("第%d战 ❌ 失败！剩余生命: %d\n",
+                                    totalBattles,
+                                    result.getCharacterHpRemaining());
+                            continueAuto = false;
+                        }
+
+                        // 短暂延迟，避免请求过快
+                        Thread.sleep(500);
+                    } else {
+                        // 解析失败，可能是体力不足或其他错误
+                        continueAuto = false;
+                    }
+                } catch (Exception e) {
+                    // 任何错误都停止挂机
+                    System.err.println("\n挂机中断: " + e.getMessage());
+                    continueAuto = false;
+                }
+            }
+
+            // 显示挂机统计
+            System.out.println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            System.out.println("🤖 挂机结束！战斗统计：");
+            System.out.println("┌─────────────────────────────────────┐");
+            System.out.printf("│ 总战斗次数：%-4d                    │\n", totalBattles);
+            System.out.printf("│ 胜利次数：  %-4d                    │\n", victories);
+            System.out.printf("│ 失败次数：  %-4d                    │\n", defeats);
+            System.out.println("├─────────────────────────────────────┤");
+            System.out.printf("│ 获得经验：  %-8d                │\n", totalExpGained);
+            System.out.printf("│ 获得灵石：  %-8d                │\n", totalSpiritStonesGained);
+            System.out.println("└─────────────────────────────────────┘");
+
+            if (victories > 0) {
+                double winRate = (double) victories / totalBattles * 100;
+                System.out.printf("胜率：%.1f%%\n", winRate);
+            }
+
+        } catch (NumberFormatException e) {
+            System.out.println("\n❌ 无效的妖兽ID！请输入数字。");
+        } catch (Exception e) {
+            System.out.println("\n❌ 挂机出错: " + e.getMessage());
         }
 
         pressEnterToContinue();
@@ -1513,6 +1631,7 @@ public class XiuxianGameClient {
             System.out.println("│  2. 装备物品                         │");
             System.out.println("│  3. 卸下装备                         │");
             System.out.println("│  4. 查看装备加成                     │");
+            System.out.println("│  5. 🎒 查看背包                       │");
             System.out.println("│  0. 返回主菜单                       │");
             System.out.println("└──────────────────────────────────────┘");
             System.out.print("\n请选择: ");
@@ -1524,6 +1643,7 @@ public class XiuxianGameClient {
                 case "2": equipItem(); break;
                 case "3": unequipItem(); break;
                 case "4": showEquipmentBonus(); break;
+                case "5": showInventory(); break;
                 case "0": return;
                 default: System.out.println("\n无效选择！");
             }
@@ -1790,6 +1910,149 @@ public class XiuxianGameClient {
                     result.getNewFortune());
             System.out.println("└────────────────────────────────────────────┘");
             System.out.println("\n剩余可用点数: " + result.getRemainingPoints());
+
+            // 显示衍生属性的变化
+            if (result.getNewAttack() != null || result.getNewDefense() != null) {
+                System.out.println("\n衍生属性:");
+                System.out.println("┌─────────────────────────────────────────────────────┐");
+                if (result.getNewAttack() != null && result.getNewDefense() != null) {
+                    System.out.printf("│ 攻击力: %-5d │ 防御力: %-5d                    │\n",
+                            result.getNewAttack(), result.getNewDefense());
+                }
+                if (result.getNewHealthMax() != null) {
+                    System.out.printf("│ 气血上限: %-8d │ 体力上限: %-8d          │\n",
+                            result.getNewHealthMax(), result.getNewStaminaMax());
+                }
+                if (result.getNewSpiritualPowerMax() != null) {
+                    System.out.printf("│ 灵力上限: %-8d                               │\n",
+                            result.getNewSpiritualPowerMax());
+                }
+                if (result.getNewCritRate() != null) {
+                    System.out.printf("│ 暴击率: %.1f%%     │ 暴击伤害: %.1f%%              │\n",
+                            result.getNewCritRate(), result.getNewCritDamage());
+                }
+                if (result.getNewSpeed() != null) {
+                    System.out.printf("│ 速度: %.1f                                         │\n",
+                            result.getNewSpeed());
+                }
+                System.out.println("└─────────────────────────────────────────────────────┘");
+            }
+        }
+
+        pressEnterToContinue();
+    }
+
+    /**
+     * 查看背包
+     */
+    private static void showInventory() throws IOException, InterruptedException {
+        while (true) {
+            System.out.println("\n┌──────────────────────────────────────┐");
+            System.out.println("│              背包系统                │");
+            System.out.println("├──────────────────────────────────────┤");
+            System.out.println("│  1. 查看全部物品                     │");
+            System.out.println("│  2. 只看装备                         │");
+            System.out.println("│  3. 只看材料                         │");
+            System.out.println("│  4. 只看丹药                         │");
+            System.out.println("│  5. 背包统计                         │");
+            System.out.println("│  0. 返回上级菜单                     │");
+            System.out.println("└──────────────────────────────────────┘");
+            System.out.print("\n请选择: ");
+
+            String choice = scanner.nextLine();
+
+            switch (choice) {
+                case "1": showInventoryItems(null); break;
+                case "2": showInventoryItems("equipment"); break;
+                case "3": showInventoryItems("material"); break;
+                case "4": showInventoryItems("pill"); break;
+                case "5": showInventorySummary(); break;
+                case "0": return;
+                default: System.out.println("\n无效选择！");
+            }
+        }
+    }
+
+    /**
+     * 显示背包物品
+     */
+    private static void showInventoryItems(String itemType) throws IOException, InterruptedException {
+        System.out.println("\n--- 背包物品 ---");
+
+        String url = "/inventory/character/" + currentCharacterId;
+        if (itemType != null) {
+            url += "?itemType=" + itemType;
+        }
+
+        String response = ApiClient.get(url);
+        JsonObject jsonObject = gson.fromJson(response, JsonObject.class);
+
+        if (jsonObject.has("code") && jsonObject.get("code").getAsInt() == 200) {
+            if (jsonObject.has("data") && jsonObject.get("data").isJsonArray()) {
+                JsonArray array = jsonObject.get("data").getAsJsonArray();
+
+                if (array.size() == 0) {
+                    System.out.println("\n背包是空的！");
+                } else {
+                    String typeLabel = itemType == null ? "全部" :
+                            itemType.equals("equipment") ? "装备" :
+                            itemType.equals("material") ? "材料" : "丹药";
+
+                    System.out.println("\n" + typeLabel + "物品 (共" + array.size() + "件):");
+                    System.out.println("────────────────────────────────────────────────────────────");
+                    System.out.printf("%-4s  %-20s  %-20s  %-6s\n", "ID", "物品名称", "详细信息", "数量");
+                    System.out.println("────────────────────────────────────────────────────────────");
+
+                    for (int i = 0; i < array.size(); i++) {
+                        JsonObject item = array.get(i).getAsJsonObject();
+                        Long id = item.has("inventoryId") ? item.get("inventoryId").getAsLong() : 0L;
+                        String name = item.has("itemName") ? item.get("itemName").getAsString() : "未知";
+                        String detail = item.has("itemDetail") ? item.get("itemDetail").getAsString() : "";
+                        Integer quantity = item.has("quantity") ? item.get("quantity").getAsInt() : 0;
+
+                        System.out.printf("%-4d  %-20s  %-20s  %-6d\n",
+                                (i + 1), name, detail, quantity);
+                    }
+                    System.out.println("────────────────────────────────────────────────────────────");
+                }
+            } else {
+                System.out.println("\n背包是空的！");
+            }
+        } else {
+            System.out.println("\n❌ " + response);
+        }
+
+        pressEnterToContinue();
+    }
+
+    /**
+     * 显示背包统计
+     */
+    private static void showInventorySummary() throws IOException, InterruptedException {
+        System.out.println("\n--- 背包统计 ---");
+
+        String response = ApiClient.get("/inventory/character/" + currentCharacterId + "/summary");
+        JsonObject jsonObject = gson.fromJson(response, JsonObject.class);
+
+        if (jsonObject.has("code") && jsonObject.get("code").getAsInt() == 200) {
+            if (jsonObject.has("data")) {
+                JsonObject data = jsonObject.get("data").getAsJsonObject();
+                System.out.println("\n背包统计信息:");
+                System.out.println("┌─────────────────────────────────────────┐");
+                System.out.printf("│ 总物品数: %-5d                           │\n",
+                        data.has("totalItems") ? data.get("totalItems").getAsInt() : 0);
+                System.out.printf("│ 装备数量: %-5d                           │\n",
+                        data.has("equipmentCount") ? data.get("equipmentCount").getAsInt() : 0);
+                System.out.printf("│ 材料数量: %-5d                           │\n",
+                        data.has("materialCount") ? data.get("materialCount").getAsInt() : 0);
+                System.out.printf("│ 丹药数量: %-5d                           │\n",
+                        data.has("pillCount") ? data.getPillCount().getAsInt() : 0);
+                System.out.println("└─────────────────────────────────────────┘");
+            } else {
+                System.out.println("\n暂无统计数据！");
+            }
+        } else {
+            System.out.println("\n❌ " + response);
         }
 
         pressEnterToContinue();

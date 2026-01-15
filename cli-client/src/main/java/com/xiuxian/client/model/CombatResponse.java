@@ -23,6 +23,8 @@ public class CombatResponse {
     private Integer spiritStonesGained;
     private List<String> itemsDropped;
     private Integer characterHpRemaining;
+    private Integer characterStaminaRemaining;  // 剩余体力
+    private Integer characterSpiritualPowerRemaining;  // 剩余灵力
     private String message;
     private List<String> combatLog;
 
@@ -43,6 +45,8 @@ public class CombatResponse {
     public Integer getSpiritStonesGained() { return spiritStonesGained; }
     public List<String> getItemsDropped() { return itemsDropped; }
     public Integer getCharacterHpRemaining() { return characterHpRemaining; }
+    public Integer getCharacterStaminaRemaining() { return characterStaminaRemaining; }
+    public Integer getCharacterSpiritualPowerRemaining() { return characterSpiritualPowerRemaining; }
     public String getMessage() { return message; }
     public List<String> getCombatLog() { return combatLog; }
 
@@ -63,6 +67,8 @@ public class CombatResponse {
     public void setSpiritStonesGained(Integer spiritStonesGained) { this.spiritStonesGained = spiritStonesGained; }
     public void setItemsDropped(List<String> itemsDropped) { this.itemsDropped = itemsDropped; }
     public void setCharacterHpRemaining(Integer characterHpRemaining) { this.characterHpRemaining = characterHpRemaining; }
+    public void setCharacterStaminaRemaining(Integer characterStaminaRemaining) { this.characterStaminaRemaining = characterStaminaRemaining; }
+    public void setCharacterSpiritualPowerRemaining(Integer characterSpiritualPowerRemaining) { this.characterSpiritualPowerRemaining = characterSpiritualPowerRemaining; }
     public void setMessage(String message) { this.message = message; }
     public void setCombatLog(List<String> combatLog) { this.combatLog = combatLog; }
 

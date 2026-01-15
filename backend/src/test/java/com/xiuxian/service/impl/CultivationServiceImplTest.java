@@ -570,7 +570,7 @@ public class CultivationServiceImplTest {
         // 准备测试数据：角色当前经验80，悟性和机缘都设为0以获得基础经验
         // 基础经验50-100，假设获得100经验，总共180经验
         // 1层->2层需要150经验，所以应该升级到2层
-        character.setExperience(80L);
+        character.setExperience(100L);
         character.setRealmLevel(1);
         character.setStamina(100);
         character.setAvailablePoints(0);

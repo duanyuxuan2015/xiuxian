@@ -26,6 +26,7 @@ import java.lang.reflect.Field;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+import org.mockito.ArgumentCaptor;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -227,10 +228,15 @@ public class CharacterServiceImplTest {
         character.setCharacterId(1L);
         character.setPlayerName("TestPlayer");
         character.setRealmId(1);
+        character.setRealmLevel(1);  // 境界层级1层
+        character.setConstitution(10);  // 基础攻击 = 10*2 + 10 = 30，基础防御 = 10*1.5 = 15
+        character.setSpirit(10);
 
         Realm realm = new Realm();
         realm.setId(1);
         realm.setRealmName("Mortal");
+        realm.setAttackBonus(5);   // 境界攻击加成5
+        realm.setDefenseBonus(3);  // 境界防御加成3
 
         when(characterMapper.selectById(1L)).thenReturn(character);
         when(realmService.getById(1)).thenReturn(realm);
@@ -240,6 +246,10 @@ public class CharacterServiceImplTest {
         assertNotNull(response);
         assertEquals("TestPlayer", response.getPlayerName());
         assertEquals("Mortal", response.getRealmName());
+        // 验证攻击力 = 基础攻击30 + 境界加成5 + 层级加成(1-1)*1 = 35
+        assertEquals(35, response.getAttack());
+        // 验证防御力 = 基础防御15 + 境界加成3 + 层级加成(1-1)*0.5 = 18
+        assertEquals(18, response.getDefense());
     }
 
     @Test
@@ -253,6 +263,37 @@ public class CharacterServiceImplTest {
             assertEquals(1003, e.getCode());
             assertTrue(e.getMessage().contains("角色不存在"));
         }
+    }
+
+    @Test
+    void getCharacterById_WithRealmLevelBonus() {
+        // 测试境界层级加成
+        PlayerCharacter character = new PlayerCharacter();
+        character.setCharacterId(1L);
+        character.setPlayerName("TestPlayer");
+        character.setRealmId(2);
+        character.setRealmLevel(5);  // 境界层级5层
+        character.setConstitution(10);  // 基础攻击 = 10*2 + 10 = 30，基础防御 = 10*1.5 = 15
+        character.setSpirit(10);
+
+        Realm realm = new Realm();
+        realm.setId(2);
+        realm.setRealmName("Qi Condensation");
+        realm.setAttackBonus(5);   // 境界攻击加成5
+        realm.setDefenseBonus(3);  // 境界防御加成3
+
+        when(characterMapper.selectById(1L)).thenReturn(character);
+        when(realmService.getById(2)).thenReturn(realm);
+
+        CharacterResponse response = characterService.getCharacterById(1L);
+
+        assertNotNull(response);
+        assertEquals("TestPlayer", response.getPlayerName());
+        assertEquals("Qi Condensation", response.getRealmName());
+        // 验证攻击力 = 基础攻击30 + 境界加成5 + 层级加成(5-1)*1 = 30 + 5 + 4 = 39
+        assertEquals(39, response.getAttack());
+        // 验证防御力 = 基础防御15 + 境界加成3 + 层级加成(5-1)*0.5 = 15 + 3 + 2 = 20
+        assertEquals(20, response.getDefense());
     }
 
     @Test
@@ -683,8 +724,9 @@ public class CharacterServiceImplTest {
         // 暴击率 = 5 + 25 × 0.5 = 17.5%
         // 暴击伤害 = 150 + 25 × 2 = 200%
         // 速度 = 100 + 25 × 2 = 150
-        // 注意：这些值目前只是被计算，但PlayerCharacter实体没有存储这些字段
-        // 通过日志可以验证计算逻辑是否正确
+        assertEquals(17.5, character.getCritRate(), 0.01);
+        assertEquals(200.0, character.getCritDamage(), 0.01);
+        assertEquals(150.0, character.getSpeed(), 0.01);
 
         verify(characterMapper).updateById(any(PlayerCharacter.class));
     }
@@ -763,11 +805,7 @@ public class CharacterServiceImplTest {
         when(realmService.getById(1)).thenReturn(realm);
 
         when(characterMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
-        when(characterMapper.insert(any(PlayerCharacter.class))).thenAnswer(invocation -> {
-            PlayerCharacter character = invocation.getArgument(0);
-            character.setCharacterId(1L);
-            return 1;
-        });
+        when(characterMapper.insert(any(PlayerCharacter.class))).thenReturn(1);
 
         // 执行测试
         CharacterResponse response = characterService.createCharacter(request);
@@ -776,8 +814,17 @@ public class CharacterServiceImplTest {
         assertNotNull(response);
         assertEquals("TestPlayer", response.getPlayerName());
 
-        // 验证衍生属性包含境界加成
-        // 通过捕获insert的参数来验证
-        verify(characterMapper).insert(any());
+        // 使用ArgumentCaptor捕获插入的角色对象
+        ArgumentCaptor<PlayerCharacter> captor = ArgumentCaptor.forClass(PlayerCharacter.class);
+        verify(characterMapper).insert(captor.capture());
+
+        PlayerCharacter insertedCharacter = captor.getValue();
+        // 验证衍生属性包含境界加成：
+        // healthMax = 基础值100 + 体质10 × 系数10 + 境界加成50 = 250
+        assertEquals(250, insertedCharacter.getHealthMax());
+        // staminaMax = 基础值100 + 体质10 × 系数10 + 境界加成40 = 240
+        assertEquals(240, insertedCharacter.getStaminaMax());
+        // spiritualPowerMax = 基础值100 + 精神10 × 系数10 + 境界加成30 = 230
+        assertEquals(230, insertedCharacter.getSpiritualPowerMax());
     }
 }

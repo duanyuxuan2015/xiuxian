@@ -45,6 +45,12 @@ public class PlayerCharacter {
 
     private Integer mindset;
 
+    private Double critRate;
+
+    private Double critDamage;
+
+    private Double speed;
+
     private Integer constitution;
 
     private Integer spirit;
@@ -189,6 +195,30 @@ public class PlayerCharacter {
 
     public void setMindset(Integer mindset) {
         this.mindset = mindset;
+    }
+
+    public Double getCritRate() {
+        return critRate;
+    }
+
+    public void setCritRate(Double critRate) {
+        this.critRate = critRate;
+    }
+
+    public Double getCritDamage() {
+        return critDamage;
+    }
+
+    public void setCritDamage(Double critDamage) {
+        this.critDamage = critDamage;
+    }
+
+    public Double getSpeed() {
+        return speed;
+    }
+
+    public void setSpeed(Double speed) {
+        this.speed = speed;
     }
 
     public Integer getConstitution() {

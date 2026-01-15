@@ -147,6 +147,24 @@ public class ApiClient {
     public static <T> T parseResponse(String jsonResponse, Class<T> classOfT) {
         try {
             JsonObject jsonObject = gson.fromJson(jsonResponse, JsonObject.class);
+
+            // 检查是否有错误码
+            if (jsonObject.has("code")) {
+                int code = jsonObject.get("code").getAsInt();
+                if (code != 200) {
+                    String message = jsonObject.has("message") ? jsonObject.get("message").getAsString() : "未知错误";
+
+                    // 特殊处理体力不足的错误
+                    if (code == 2003 && message.contains("体力不足")) {
+                        System.err.println("\n❌ " + message);
+                        System.err.println("💡 提示：选择「修炼菜单 → 打坐恢复」来恢复体力");
+                    } else {
+                        System.err.println("[API] 服务器返回错误 [" + code + "]: " + message);
+                    }
+                    return null;
+                }
+            }
+
             if (jsonObject.has("data") && jsonObject.get("data").isJsonObject()) {
                 if (DEBUG) {
                     System.out.println("[API] 解析响应成功: " + classOfT.getSimpleName());

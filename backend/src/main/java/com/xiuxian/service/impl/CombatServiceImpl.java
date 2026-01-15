@@ -9,10 +9,16 @@ import com.xiuxian.dto.response.CombatResponse;
 import com.xiuxian.entity.PlayerCharacter;
 import com.xiuxian.entity.CombatRecord;
 import com.xiuxian.entity.Monster;
+import com.xiuxian.entity.Equipment;
 import com.xiuxian.mapper.CombatRecordMapper;
+import com.xiuxian.mapper.EquipmentMapper;
+import com.xiuxian.entity.Realm;
 import com.xiuxian.service.CharacterService;
 import com.xiuxian.service.CombatService;
 import com.xiuxian.service.MonsterService;
+import com.xiuxian.service.RealmService;
+import com.xiuxian.service.MonsterDropService;
+import com.xiuxian.service.InventoryService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
@@ -38,11 +44,21 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
 
     private final CharacterService characterService;
     private final MonsterService monsterService;
+    private final RealmService realmService;
+    private final MonsterDropService monsterDropService;
+    private final InventoryService inventoryService;
+    private final EquipmentMapper equipmentMapper;
     private final Random random = new Random();
 
-    public CombatServiceImpl(@Lazy CharacterService characterService, MonsterService monsterService) {
+    public CombatServiceImpl(@Lazy CharacterService characterService, MonsterService monsterService,
+                             RealmService realmService, MonsterDropService monsterDropService,
+                             InventoryService inventoryService, EquipmentMapper equipmentMapper) {
         this.characterService = characterService;
         this.monsterService = monsterService;
+        this.realmService = realmService;
+        this.monsterDropService = monsterDropService;
+        this.inventoryService = inventoryService;
+        this.equipmentMapper = equipmentMapper;
     }
 
     @Override
@@ -91,11 +107,28 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
         // 8. 发放奖励（如果胜利）
         int expGained = 0;
         int spiritStonesGained = 0;
+        List<String> itemsDropped = new ArrayList<>();
+
         if (result.victory) {
             expGained = monster.getExpReward();
             spiritStonesGained = monster.getSpiritStonesReward();
             character.setExperience(character.getExperience() + expGained);
             character.setSpiritStones(character.getSpiritStones() + spiritStonesGained);
+
+            // 执行装备掉落检测
+            List<Long> droppedEquipmentIds = monsterDropService.rollEquipmentDrops(monsterId, characterId);
+            if (droppedEquipmentIds != null && !droppedEquipmentIds.isEmpty()) {
+                for (Long equipmentId : droppedEquipmentIds) {
+                    Equipment equipment = equipmentMapper.selectById(equipmentId);
+                    if (equipment != null) {
+                        // 将装备添加到背包
+                        inventoryService.addItem(characterId, "equipment", equipmentId, 1);
+                        itemsDropped.add(equipment.getEquipmentName());
+                        logger.info("玩家{}击败{}，获得装备: {}（已添加到背包）", character.getPlayerName(),
+                                monster.getMonsterName(), equipment.getEquipmentName());
+                    }
+                }
+            }
         }
         characterService.updateCharacter(character);
 
@@ -135,12 +168,19 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
         response.setExpGained(expGained);
         response.setSpiritStonesGained(spiritStonesGained);
         response.setCharacterHpRemaining(result.characterHpRemaining);
+        response.setCharacterStaminaRemaining(character.getStamina());  // 设置剩余体力
+        response.setCharacterSpiritualPowerRemaining(character.getSpiritualPower());  // 设置剩余灵力
+        response.setItemsDropped(itemsDropped);  // 设置掉落物品
         response.setCombatLog(result.combatLog);
         response.setCombatTime(record.getCombatTime());
 
         if (result.victory) {
-            response.setMessage(String.format("战斗胜利！击败%s，获得%d经验，%d灵石！",
+            StringBuilder message = new StringBuilder(String.format("战斗胜利！击败%s，获得%d经验，%d灵石！",
                     monster.getMonsterName(), expGained, spiritStonesGained));
+            if (!itemsDropped.isEmpty()) {
+                message.append("\n掉落装备: ").append(String.join("、", itemsDropped));
+            }
+            response.setMessage(message.toString());
         } else {
             response.setMessage(String.format("战斗失败！被%s击败，消耗%d体力。",
                     monster.getMonsterName(), staminaCost));
@@ -202,11 +242,13 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
             result.damageDealt += damage;
             if (isCritical) {
                 result.criticalHits++;
-                result.combatLog.add(String.format("回合%d: %s暴击！对%s造成%d点伤害", turn, character.getPlayerName(),
-                        monster.getMonsterName(), damage));
+                result.combatLog.add(String.format("回合%d: %s暴击！对%s造成%d点伤害 (%s剩余生命: %d)",
+                        turn, character.getPlayerName(), monster.getMonsterName(), damage,
+                        monster.getMonsterName(), Math.max(0, monsterHp)));
             } else {
-                result.combatLog.add(String.format("回合%d: %s攻击%s，造成%d点伤害", turn, character.getPlayerName(),
-                        monster.getMonsterName(), damage));
+                result.combatLog.add(String.format("回合%d: %s攻击%s，造成%d点伤害 (%s剩余生命: %d)",
+                        turn, character.getPlayerName(), monster.getMonsterName(), damage,
+                        monster.getMonsterName(), Math.max(0, monsterHp)));
             }
 
             if (monsterHp <= 0) {
@@ -217,8 +259,9 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
             int monsterDamage = calculateDamage(monster.getAttackPower(), characterDefense, false);
             characterHp -= monsterDamage;
             result.damageTaken += monsterDamage;
-            result.combatLog.add(String.format("回合%d: %s攻击%s，造成%d点伤害", turn, monster.getMonsterName(),
-                    character.getPlayerName(), monsterDamage));
+            result.combatLog.add(String.format("回合%d: %s攻击%s，造成%d点伤害 (%s剩余生命: %d)",
+                    turn, monster.getMonsterName(), character.getPlayerName(), monsterDamage,
+                    character.getPlayerName(), Math.max(0, characterHp)));
         }
 
         result.turns = turn;
@@ -236,18 +279,32 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
 
     /**
      * 计算角色攻击力
+     * 攻击力 = 体质 × 2 + 精神 × 1 + 境界攻击加成
      */
     private int calculateCharacterAttack(PlayerCharacter character) {
         // 基础攻击力 = 体质 × 2 + 精神 × 1
-        return character.getConstitution() * 2 + character.getSpirit();
+        int baseAttack = character.getConstitution() * 2 + character.getSpirit();
+
+        // 获取境界攻击加成
+        Realm realm = realmService.getById(character.getRealmId());
+        int realmAttackBonus = (realm != null && realm.getAttackBonus() != null) ? realm.getAttackBonus() : 0;
+
+        return baseAttack + realmAttackBonus;
     }
 
     /**
      * 计算角色防御力
+     * 防御力 = 体质 × 1.5 + 境界防御加成
      */
     private int calculateCharacterDefense(PlayerCharacter character) {
         // 基础防御力 = 体质 × 1.5
-        return (int) (character.getConstitution() * 1.5);
+        int baseDefense = (int) (character.getConstitution() * 1.5);
+
+        // 获取境界防御加成
+        Realm realm = realmService.getById(character.getRealmId());
+        int realmDefenseBonus = (realm != null && realm.getDefenseBonus() != null) ? realm.getDefenseBonus() : 0;
+
+        return baseDefense + realmDefenseBonus;
     }
 
     /**

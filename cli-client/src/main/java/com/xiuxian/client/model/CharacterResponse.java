@@ -30,6 +30,11 @@ public class CharacterResponse {
     private Integer fortune;
     private Integer mindset;
     private Integer availablePoints;
+    private Integer attack;  // 攻击力（包含境界加成）
+    private Integer defense; // 防御力（包含境界加成）
+    private Double critRate; // 暴击率（%）
+    private Double critDamage; // 暴击伤害（%）
+    private Double speed;    // 速度
 
     // Getters
     public Long getCharacterId() { return characterId; }
@@ -63,19 +68,24 @@ public class CharacterResponse {
     public Integer getMindset() { return mindset; }
     public Integer getAvailablePoints() { return availablePoints; }
 
-    // 计算派生属性
     public Integer getAttack() {
-        if (constitution != null && spirit != null) {
-            return constitution / 2 + spirit / 3;
-        }
-        return null;
+        return attack;
     }
 
     public Integer getDefense() {
-        if (constitution != null && fortune != null) {
-            return constitution / 3 + fortune / 5;
-        }
-        return null;
+        return defense;
+    }
+
+    public Double getCritRate() {
+        return critRate;
+    }
+
+    public Double getCritDamage() {
+        return critDamage;
+    }
+
+    public Double getSpeed() {
+        return speed;
     }
 
     public String getGender() {
@@ -113,4 +123,9 @@ public class CharacterResponse {
     public void setFortune(Integer fortune) { this.fortune = fortune; }
     public void setMindset(Integer mindset) { this.mindset = mindset; }
     public void setAvailablePoints(Integer availablePoints) { this.availablePoints = availablePoints; }
+    public void setAttack(Integer attack) { this.attack = attack; }
+    public void setDefense(Integer defense) { this.defense = defense; }
+    public void setCritRate(Double critRate) { this.critRate = critRate; }
+    public void setCritDamage(Double critDamage) { this.critDamage = critDamage; }
+    public void setSpeed(Double speed) { this.speed = speed; }
 }

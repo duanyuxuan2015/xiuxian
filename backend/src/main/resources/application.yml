@@ -127,6 +127,13 @@ app:
       fortune-crit-rate: 0.5    # 气运暴击率系数：每点气运增加的暴击率（%）
       fortune-crit-damage: 2    # 气运暴击伤害系数：每点气运增加的暴击伤害（%）
       fortune-speed: 2           # 气运速度系数：每点气运增加的速度值
+      # 攻击力和防御力计算系数
+      attack-constitution: 2     # 攻击力体质系数：每点体质增加的攻击力
+      attack-spirit: 1           # 攻击力精神系数：每点精神增加的攻击力
+      defense-constitution: 1.5  # 防御力体质系数：每点体质增加的防御力
+      # 境界层级加成系数（每提升1层的加成）
+      attack-per-level: 1        # 攻击力层级系数：境界每提升1层增加的攻击力
+      defense-per-level: 0.5     # 防御力层级系数：境界每提升1层增加的防御力
     # 属性上限
     max:
       attribute: 999       # 单个属性最大值

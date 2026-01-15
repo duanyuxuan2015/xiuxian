@@ -24,6 +24,8 @@ public class CombatResponse {
     private Integer spiritStonesGained;
     private List<String> itemsDropped;
     private Integer characterHpRemaining;
+    private Integer characterStaminaRemaining;  // 剩余体力
+    private Integer characterSpiritualPowerRemaining;  // 剩余灵力
     private String message;
     private List<String> combatLog;
     private LocalDateTime combatTime;
@@ -157,6 +159,22 @@ public class CombatResponse {
 
     public void setCharacterHpRemaining(Integer characterHpRemaining) {
         this.characterHpRemaining = characterHpRemaining;
+    }
+
+    public Integer getCharacterStaminaRemaining() {
+        return characterStaminaRemaining;
+    }
+
+    public void setCharacterStaminaRemaining(Integer characterStaminaRemaining) {
+        this.characterStaminaRemaining = characterStaminaRemaining;
+    }
+
+    public Integer getCharacterSpiritualPowerRemaining() {
+        return characterSpiritualPowerRemaining;
+    }
+
+    public void setCharacterSpiritualPowerRemaining(Integer characterSpiritualPowerRemaining) {
+        this.characterSpiritualPowerRemaining = characterSpiritualPowerRemaining;
     }
 
     public String getMessage() {

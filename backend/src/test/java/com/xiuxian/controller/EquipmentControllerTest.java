@@ -90,13 +90,13 @@ public class EquipmentControllerTest {
     @Test
     public void getEquipmentBonus_Success() throws Exception {
         EquipmentService.EquipmentBonus bonus = new EquipmentService.EquipmentBonus();
-        bonus.setAttackPower(10);
+        bonus.attackBonus = 10;
 
         when(equipmentService.calculateEquipmentBonus(anyLong())).thenReturn(bonus);
 
         mockMvc.perform(get("/equipment/bonus/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.attackPower").value(10));
+                .andExpect(jsonPath("$.data.attackBonus").value(10));
     }
 }
