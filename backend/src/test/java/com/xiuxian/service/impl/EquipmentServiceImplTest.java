@@ -2,12 +2,16 @@ package com.xiuxian.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.xiuxian.common.exception.BusinessException;
+import com.xiuxian.dto.request.AutoEquipRequest;
 import com.xiuxian.dto.request.EquipRequest;
+import com.xiuxian.dto.response.AutoEquipResponse;
 import com.xiuxian.dto.response.EquipmentResponse;
 import com.xiuxian.entity.CharacterEquipment;
+import com.xiuxian.entity.CharacterInventory;
 import com.xiuxian.entity.Equipment;
 import com.xiuxian.entity.PlayerCharacter;
 import com.xiuxian.mapper.CharacterEquipmentMapper;
+import com.xiuxian.mapper.CharacterInventoryMapper;
 import com.xiuxian.mapper.EquipmentMapper;
 import com.xiuxian.service.CharacterService;
 import com.xiuxian.service.EquipmentService;
@@ -19,6 +23,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -37,6 +42,8 @@ public class EquipmentServiceImplTest {
     private EquipmentMapper equipmentMapper;
     @Mock
     private CharacterEquipmentMapper characterEquipmentMapper;
+    @Mock
+    private CharacterInventoryMapper characterInventoryMapper;
 
     @InjectMocks
     private EquipmentServiceImpl equipmentService;
@@ -519,5 +526,77 @@ public class EquipmentServiceImplTest {
         assertEquals(36, bonus.fireResistBonus);
         // 9件装备，每件+6电系抗性，总共54
         assertEquals(54, bonus.lightningResistBonus);
+    }
+
+    @Test
+    void testAutoEquip_ByBaseScore_Success() {
+        // 测试按baseScore一键装备
+        AutoEquipRequest request = new AutoEquipRequest();
+        request.setCharacterId(1L);
+        request.setPriorityAttribute(null);
+
+        // Mock角色存在
+        when(characterService.getById(1L)).thenReturn(character);
+
+        // Mock当前装备为空
+        when(characterEquipmentMapper.selectList(any(LambdaQueryWrapper.class)))
+                .thenReturn(new ArrayList<>());
+
+        // Mock背包中有装备
+        CharacterInventory inventory = new CharacterInventory();
+        inventory.setItemId(1L);
+        inventory.setItemType("equipment");
+
+        when(characterInventoryMapper.selectList(any(LambdaQueryWrapper.class)))
+                .thenReturn(Collections.singletonList(inventory));
+
+        // Mock装备信息
+        equipment.setBaseScore(100);
+        equipment.setEquipmentType("武器");
+        when(equipmentMapper.selectBatchIds(any())).thenReturn(Collections.singletonList(equipment));
+        when(equipmentMapper.selectById(1L)).thenReturn(equipment);
+
+        // Mock插入装备操作
+        when(characterEquipmentMapper.insert(any(CharacterEquipment.class))).thenReturn(1);
+
+        AutoEquipResponse response = equipmentService.autoEquip(request);
+
+        assertNotNull(response);
+        assertEquals(1, response.getTotalChanges()); // 装备了一件装备
+    }
+
+    @Test
+    void testAutoEquip_EmptyInventory() {
+        // 测试背包为空时的情况
+        AutoEquipRequest request = new AutoEquipRequest();
+        request.setCharacterId(1L);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(characterEquipmentMapper.selectList(any(LambdaQueryWrapper.class)))
+                .thenReturn(new ArrayList<>());
+        when(characterInventoryMapper.selectList(any(LambdaQueryWrapper.class)))
+                .thenReturn(new ArrayList<>());
+
+        assertThrows(BusinessException.class, () -> {
+            equipmentService.autoEquip(request);
+        });
+    }
+
+    @Test
+    void testPreviewAutoEquip_NoChanges() {
+        // 测试预览功能（当前已是最优配置）
+        AutoEquipRequest request = new AutoEquipRequest();
+        request.setCharacterId(1L);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(characterEquipmentMapper.selectList(any(LambdaQueryWrapper.class)))
+                .thenReturn(new ArrayList<>());
+        when(characterInventoryMapper.selectList(any(LambdaQueryWrapper.class)))
+                .thenReturn(new ArrayList<>());
+
+        AutoEquipResponse preview = equipmentService.previewAutoEquip(request);
+
+        assertNotNull(preview);
+        assertEquals(0, preview.getTotalChanges());
     }
 }

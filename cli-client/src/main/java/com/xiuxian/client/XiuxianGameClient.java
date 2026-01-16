@@ -3013,6 +3013,7 @@ public class XiuxianGameClient {
             System.out.println("│  2. 装备物品                         │");
             System.out.println("│  3. 卸下装备                         │");
             System.out.println("│  4. 查看装备加成                     │");
+            System.out.println("│  5. 一键装备                         │");
             System.out.println("│  0. 返回主菜单                       │");
             System.out.println("└──────────────────────────────────────┘");
             System.out.print("\n请选择 (直接回车返回主菜单): ");
@@ -3024,6 +3025,7 @@ public class XiuxianGameClient {
                 case "2": equipItem(); break;
                 case "3": unequipItem(); break;
                 case "4": showEquipmentBonus(); break;
+                case "5": autoEquip(); break;
                 case "0": return;
                 default: System.out.println("\n无效选择！");
             }
@@ -3478,6 +3480,145 @@ public class XiuxianGameClient {
             }
         } else {
             String errorMsg = jsonObject.has("message") ? jsonObject.get("message").getAsString() : "加载失败";
+            System.out.println("\n❌ " + errorMsg);
+        }
+
+        pressEnterToContinue();
+    }
+
+    /**
+     * 一键装备
+     */
+    private static void autoEquip() throws IOException, InterruptedException {
+        System.out.println("\n--- 一键装备 ---");
+
+        // 1. 选择优先属性
+        System.out.println("\n请选择优先装备属性：");
+        System.out.println("┌──────────────────────────────────────┐");
+        System.out.println("│  1. 物理抗性                         │");
+        System.out.println("│  2. 冰系抗性                         │");
+        System.out.println("│  3. 火系抗性                         │");
+        System.out.println("│  4. 雷系抗性                         │");
+        System.out.println("│  0. 不指定（按基础评分）             │");
+        System.out.println("└──────────────────────────────────────┘");
+        System.out.print("\n请选择 (直接回车默认不指定): ");
+
+        String attrChoice = scanner.nextLine().trim();
+        String priorityAttribute = null;
+
+        switch (attrChoice) {
+            case "1":
+                priorityAttribute = "physical";
+                break;
+            case "2":
+                priorityAttribute = "ice";
+                break;
+            case "3":
+                priorityAttribute = "fire";
+                break;
+            case "4":
+                priorityAttribute = "lightning";
+                break;
+            case "0":
+            case "":
+                priorityAttribute = null;
+                break;
+            default:
+                System.out.println("\n无效选择，将按基础评分装备");
+                priorityAttribute = null;
+        }
+
+        // 2. 获取预览方案
+        System.out.println("\n正在计算最优装备方案...");
+
+        com.google.gson.JsonObject previewRequest = new com.google.gson.JsonObject();
+        previewRequest.addProperty("characterId", currentCharacterId);
+        if (priorityAttribute != null) {
+            previewRequest.addProperty("priorityAttribute", priorityAttribute);
+        }
+
+        String previewResponse = ApiClient.post("/equipment/auto-equip/preview", previewRequest);
+        com.google.gson.JsonObject previewJson = gson.fromJson(previewResponse, com.google.gson.JsonObject.class);
+
+        if (previewJson.has("code") && previewJson.get("code").getAsInt() != 200) {
+            String errorMsg = previewJson.has("message") ? previewJson.get("message").getAsString() : "获取预览失败";
+            System.out.println("\n❌ " + errorMsg);
+            pressEnterToContinue();
+            return;
+        }
+
+        // 解析预览结果
+        com.google.gson.JsonArray changesArray = previewJson.getAsJsonObject("data").getAsJsonArray("changes");
+
+        if (changesArray.size() == 0) {
+            System.out.println("\n✅ 当前装备已是最优配置，无需更换！");
+            pressEnterToContinue();
+            return;
+        }
+
+        // 3. 显示预览方案
+        System.out.println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        System.out.println("                    装备更换预览                          ");
+        System.out.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+        java.util.List<com.xiuxian.client.model.EquipmentChangeInfo> changes = new java.util.ArrayList<>();
+        for (int i = 0; i < changesArray.size(); i++) {
+            com.google.gson.JsonObject changeObj = changesArray.get(i).getAsJsonObject();
+            com.xiuxian.client.model.EquipmentChangeInfo change =
+                gson.fromJson(changeObj, com.xiuxian.client.model.EquipmentChangeInfo.class);
+            changes.add(change);
+        }
+
+        for (com.xiuxian.client.model.EquipmentChangeInfo change : changes) {
+            System.out.printf("\n【%s】%s%n", change.getEquipmentSlot(), change.getReason());
+            System.out.println("  旧装备: " + (change.getOldEquipment() != null ?
+                String.format("%s (评分:%d)",
+                    change.getOldEquipment().getEquipmentName(),
+                    change.getOldEquipment().getBaseScore()) :
+                "[空]"));
+            System.out.println("  新装备: " + String.format("%s (评分:%d)",
+                change.getNewEquipment().getEquipmentName(),
+                change.getNewEquipment().getBaseScore()));
+        }
+
+        System.out.println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        System.out.printf("共将更换 %d 件装备%n", changes.size());
+        System.out.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+        // 4. 用户确认
+        System.out.print("\n是否确认装备？(y/n): ");
+        String confirm = scanner.nextLine().trim();
+
+        if (!confirm.equalsIgnoreCase("y") && !confirm.equalsIgnoreCase("yes")) {
+            System.out.println("\n已取消装备");
+            pressEnterToContinue();
+            return;
+        }
+
+        // 5. 执行装备
+        System.out.println("\n正在执行装备...");
+
+        String equipResponse = ApiClient.post("/equipment/auto-equip", previewRequest);
+        com.google.gson.JsonObject equipJson = gson.fromJson(equipResponse, com.google.gson.JsonObject.class);
+
+        if (equipJson.has("code") && equipJson.get("code").getAsInt() == 200) {
+            String message = equipJson.getAsJsonObject("data").get("message").getAsString();
+            System.out.println("\n✅ " + message);
+
+            // 显示详细变更
+            com.google.gson.JsonArray resultChanges = equipJson.getAsJsonObject("data")
+                .getAsJsonArray("changes");
+            if (resultChanges.size() > 0) {
+                System.out.println("\n装备变更详情：");
+                for (int i = 0; i < resultChanges.size(); i++) {
+                    com.google.gson.JsonObject changeObj = resultChanges.get(i).getAsJsonObject();
+                    String slot = changeObj.get("equipmentSlot").getAsString();
+                    String reason = changeObj.get("reason").getAsString();
+                    System.out.printf("  • %s: %s%n", slot, reason);
+                }
+            }
+        } else {
+            String errorMsg = equipJson.has("message") ? equipJson.get("message").getAsString() : "装备失败";
             System.out.println("\n❌ " + errorMsg);
         }
 

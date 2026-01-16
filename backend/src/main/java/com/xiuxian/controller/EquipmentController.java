@@ -1,7 +1,9 @@
 package com.xiuxian.controller;
 
 import com.xiuxian.common.response.Result;
+import com.xiuxian.dto.request.AutoEquipRequest;
 import com.xiuxian.dto.request.EquipRequest;
+import com.xiuxian.dto.response.AutoEquipResponse;
 import com.xiuxian.dto.response.EquipmentResponse;
 import com.xiuxian.service.EquipmentService;
 import jakarta.validation.Valid;
@@ -69,5 +71,25 @@ public class EquipmentController {
     public Result<EquipmentService.EquipmentBonus> getEquipmentBonus(@PathVariable Long characterId) {
         EquipmentService.EquipmentBonus bonus = equipmentService.calculateEquipmentBonus(characterId);
         return Result.success(bonus);
+    }
+
+    /**
+     * 一键装备
+     * POST /api/v1/equipment/auto-equip
+     */
+    @PostMapping("/auto-equip")
+    public Result<AutoEquipResponse> autoEquip(@Valid @RequestBody AutoEquipRequest request) {
+        AutoEquipResponse response = equipmentService.autoEquip(request);
+        return Result.success(response);
+    }
+
+    /**
+     * 获取一键装备预览（不实际装备）
+     * POST /api/v1/equipment/auto-equip/preview
+     */
+    @PostMapping("/auto-equip/preview")
+    public Result<AutoEquipResponse> previewAutoEquip(@Valid @RequestBody AutoEquipRequest request) {
+        AutoEquipResponse response = equipmentService.previewAutoEquip(request);
+        return Result.success(response);
     }
 }

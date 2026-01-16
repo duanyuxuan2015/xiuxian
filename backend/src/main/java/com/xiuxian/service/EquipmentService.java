@@ -1,7 +1,9 @@
 package com.xiuxian.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.xiuxian.dto.request.AutoEquipRequest;
 import com.xiuxian.dto.request.EquipRequest;
+import com.xiuxian.dto.response.AutoEquipResponse;
 import com.xiuxian.dto.response.EquipmentResponse;
 import com.xiuxian.entity.Equipment;
 
@@ -31,6 +33,16 @@ public interface EquipmentService extends IService<Equipment> {
      * 计算装备加成
      */
     EquipmentBonus calculateEquipmentBonus(Long characterId);
+
+    /**
+     * 一键装备
+     */
+    AutoEquipResponse autoEquip(AutoEquipRequest request);
+
+    /**
+     * 预览一键装备（不实际装备）
+     */
+    AutoEquipResponse previewAutoEquip(AutoEquipRequest request);
 
     /**
      * 装备加成
