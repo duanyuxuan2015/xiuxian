@@ -2,11 +2,13 @@ package com.xiuxian.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.xiuxian.dto.response.SellItemResponse;
+import com.xiuxian.entity.CharacterEquipment;
 import com.xiuxian.entity.CharacterInventory;
 import com.xiuxian.entity.Equipment;
 import com.xiuxian.entity.Material;
 import com.xiuxian.entity.Pill;
 import com.xiuxian.entity.PlayerCharacter;
+import com.xiuxian.mapper.CharacterEquipmentMapper;
 import com.xiuxian.mapper.CharacterInventoryMapper;
 import com.xiuxian.mapper.EquipmentMapper;
 import com.xiuxian.mapper.MaterialMapper;
@@ -41,6 +43,9 @@ public class InventoryServiceImplTest {
 
     @Mock
     private PillMapper pillMapper;
+
+    @Mock
+    private CharacterEquipmentMapper characterEquipmentMapper;
 
     @Mock
     private CharacterService characterService;
@@ -462,5 +467,129 @@ public class InventoryServiceImplTest {
         assertThrows(com.xiuxian.common.exception.BusinessException.class, () -> {
             spyService.sellItem(1L, 1L, 1);
         });
+    }
+
+    @Test
+    void sellItem_EquipmentEquipped_ThrowsException() {
+        // 准备测试数据 - 装备已装备
+        CharacterInventory inventory = new CharacterInventory();
+        inventory.setInventoryId(1L);
+        inventory.setCharacterId(1L);
+        inventory.setItemType("equipment");
+        inventory.setItemId(10L);
+        inventory.setQuantity(1);
+
+        Equipment equipment = new Equipment();
+        equipment.setEquipmentName("传说之剑");
+        equipment.setBaseScore(100);
+
+        CharacterEquipment equipped = new CharacterEquipment();
+        equipped.setCharacterId(1L);
+        equipped.setEquipmentId(10L);
+        equipped.setEquipmentSlot("weapon");
+
+        // Mock配置
+        lenient().when(inventoryService.getById(1L)).thenReturn(inventory);
+        lenient().when(equipmentMapper.selectById(10L)).thenReturn(equipment);
+
+        // 简化Mock配置 - 任何selectOne调用都返回已装备的装备
+        lenient().when(characterEquipmentMapper.selectOne(any())).thenReturn(equipped);
+
+        // 执行测试并验证异常
+        com.xiuxian.common.exception.BusinessException exception = assertThrows(
+            com.xiuxian.common.exception.BusinessException.class,
+            () -> inventoryService.sellItem(1L, 1L, 1)
+        );
+
+        // 打印异常消息用于调试
+        System.out.println("异常消息: " + exception.getMessage());
+        System.out.println("异常码: " + exception.getCode());
+
+        // 验证异常信息
+        assertNotNull(exception);
+        assertTrue(exception.getMessage().contains("已装备"), "异常消息应包含'已装备'，实际消息: " + exception.getMessage());
+        assertTrue(exception.getMessage().contains("无法出售"), "异常消息应包含'无法出售'");
+        assertEquals(6005, exception.getCode());
+    }
+
+    @Test
+    void sellItem_EquipmentNotEquipped_Success() {
+        // 准备测试数据 - 装备未装备
+        CharacterInventory inventory = new CharacterInventory();
+        inventory.setInventoryId(1L);
+        inventory.setCharacterId(1L);
+        inventory.setItemType("equipment");
+        inventory.setItemId(10L);
+        inventory.setQuantity(1);
+
+        Equipment equipment = new Equipment();
+        equipment.setEquipmentName("精钢剑");
+        equipment.setBaseScore(80);
+
+        PlayerCharacter character = new PlayerCharacter();
+        character.setCharacterId(1L);
+        character.setSpiritStones(500L);
+
+        // Mock配置 - 返回null表示装备未装备
+        lenient().when(inventoryService.getById(1L)).thenReturn(inventory);
+        lenient().when(equipmentMapper.selectById(10L)).thenReturn(equipment);
+        lenient().when(characterEquipmentMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(null);
+        lenient().when(characterService.getById(1L)).thenReturn(character);
+        lenient().when(characterService.updateById(any(PlayerCharacter.class))).thenReturn(true);
+
+        // 使用spy来调用实际方法
+        InventoryServiceImpl spyService = org.mockito.Mockito.spy(inventoryService);
+        org.mockito.Mockito.doReturn(true).when(spyService).removeItem(eq(1L), eq("equipment"), eq(10L), eq(1));
+
+        // 执行测试 - 应该成功
+        SellItemResponse response = spyService.sellItem(1L, 1L, 1);
+
+        // 验证结果
+        assertNotNull(response);
+        assertEquals("精钢剑", response.getItemName());
+        assertEquals(1, response.getQuantity());
+        assertEquals(800L, response.getTotalSpiritStones()); // 80 * 10
+        assertEquals(1300L, response.getRemainingSpiritStones()); // 500 + 800
+        assertTrue(response.getMessage().contains("成功出售"));
+    }
+
+    @Test
+    void sellItem_NonEquipment_NoEquippedCheck() {
+        // 准备测试数据 - 材料类型（不是装备，不需要检查装备状态）
+        CharacterInventory inventory = new CharacterInventory();
+        inventory.setInventoryId(2L);
+        inventory.setCharacterId(1L);
+        inventory.setItemType("material");
+        inventory.setItemId(20L);
+        inventory.setQuantity(5);
+
+        Material material = new Material();
+        material.setMaterialName("铁矿石");
+        material.setMaterialTier(2);
+
+        PlayerCharacter character = new PlayerCharacter();
+        character.setCharacterId(1L);
+        character.setSpiritStones(100L);
+
+        // Mock配置 - 材料类型不应该查询装备表
+        lenient().when(inventoryService.getById(2L)).thenReturn(inventory);
+        lenient().when(materialMapper.selectById(20L)).thenReturn(material);
+        lenient().when(characterService.getById(1L)).thenReturn(character);
+        lenient().when(characterService.updateById(any(PlayerCharacter.class))).thenReturn(true);
+
+        // 使用spy来调用实际方法
+        InventoryServiceImpl spyService = org.mockito.Mockito.spy(inventoryService);
+        org.mockito.Mockito.doReturn(true).when(spyService).removeItem(eq(1L), eq("material"), eq(20L), eq(3));
+
+        // 执行测试 - 应该成功且不查询装备表
+        SellItemResponse response = spyService.sellItem(1L, 2L, 3);
+
+        // 验证结果
+        assertNotNull(response);
+        assertEquals("铁矿石", response.getItemName());
+        assertEquals(3, response.getQuantity());
+
+        // 验证没有查询装备表
+        verify(characterEquipmentMapper, never()).selectOne(any(LambdaQueryWrapper.class), anyBoolean());
     }
 }

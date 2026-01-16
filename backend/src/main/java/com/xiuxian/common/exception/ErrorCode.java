@@ -48,6 +48,7 @@ public enum ErrorCode {
     INSUFFICIENT_QUANTITY(6002, "物品数量不足"),
     EQUIPMENT_NOT_FOUND(6003, "装备不存在"),
     INVALID_EQUIPMENT_SLOT(6004, "无效的装备槽位"),
+    EQUIPMENT_EQUIPPED(6005, "装备已装备，无法出售"),
 
     // 技能相关 (7xxx)
     SKILL_NOT_FOUND(7001, "技能不存在"),

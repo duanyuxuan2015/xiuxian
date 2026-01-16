@@ -3,12 +3,14 @@ package com.xiuxian.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.xiuxian.dto.response.SellItemResponse;
+import com.xiuxian.entity.CharacterEquipment;
 import com.xiuxian.entity.CharacterInventory;
 import com.xiuxian.entity.Equipment;
 import com.xiuxian.entity.Material;
 import com.xiuxian.entity.Pill;
 import com.xiuxian.entity.PlayerCharacter;
 import com.xiuxian.common.exception.BusinessException;
+import com.xiuxian.mapper.CharacterEquipmentMapper;
 import com.xiuxian.mapper.CharacterInventoryMapper;
 import com.xiuxian.mapper.EquipmentMapper;
 import com.xiuxian.mapper.MaterialMapper;
@@ -30,19 +32,24 @@ public class InventoryServiceImpl extends ServiceImpl<CharacterInventoryMapper, 
 
     private static final Logger logger = LoggerFactory.getLogger(InventoryServiceImpl.class);
 
+    private final CharacterInventoryMapper characterInventoryMapper;
     private final EquipmentMapper equipmentMapper;
     private final MaterialMapper materialMapper;
     private final PillMapper pillMapper;
+    private final CharacterEquipmentMapper characterEquipmentMapper;
     private final CharacterService characterService;
 
     public InventoryServiceImpl(CharacterInventoryMapper characterInventoryMapper,
                                 EquipmentMapper equipmentMapper,
                                 MaterialMapper materialMapper,
                                 PillMapper pillMapper,
+                                CharacterEquipmentMapper characterEquipmentMapper,
                                 CharacterService characterService) {
+        this.characterInventoryMapper = characterInventoryMapper;
         this.equipmentMapper = equipmentMapper;
         this.materialMapper = materialMapper;
         this.pillMapper = pillMapper;
+        this.characterEquipmentMapper = characterEquipmentMapper;
         this.characterService = characterService;
     }
 
@@ -148,6 +155,21 @@ public class InventoryServiceImpl extends ServiceImpl<CharacterInventoryMapper, 
 
         if (quantity > inventory.getQuantity()) {
             throw new BusinessException(3004, "出售数量超过拥有数量");
+        }
+
+        // 1.5. 如果是装备，检查是否已装备
+        if ("equipment".equals(inventory.getItemType())) {
+            Long equipmentId = inventory.getItemId();
+            LambdaQueryWrapper<CharacterEquipment> equipmentWrapper = new LambdaQueryWrapper<>();
+            equipmentWrapper.eq(CharacterEquipment::getCharacterId, characterId)
+                    .eq(CharacterEquipment::getEquipmentId, equipmentId);
+
+            CharacterEquipment equipped = characterEquipmentMapper.selectOne(equipmentWrapper);
+            if (equipped != null) {
+                Equipment equipment = equipmentMapper.selectById(equipmentId);
+                String equipmentName = equipment != null ? equipment.getEquipmentName() : "该装备";
+                throw new BusinessException(6005, String.format("装备[%s]已装备，无法出售。请先卸下装备。", equipmentName));
+            }
         }
 
         // 2. 计算售价
