@@ -51,9 +51,14 @@ public enum ErrorCode {
 
     // 技能相关 (7xxx)
     SKILL_NOT_FOUND(7001, "技能不存在"),
-    SKILL_ALREADY_LEARNED(7002, "技能已学习"),
-    INSUFFICIENT_SKILL_COST(7003, "学习费用不足"),
-    SKILL_SLOT_FULL(7004, "技能槽位已满"),
+    INSUFFICIENT_REALM_FOR_SKILL(7002, "境界不足，无法学习该技能"),
+    SKILL_ALREADY_LEARNED(7003, "已学习该技能"),
+    CHARACTER_SKILL_NOT_FOUND(7004, "角色技能不存在"),
+    INVALID_SKILL_SLOT(7006, "无效的技能槽位"),
+    SKILL_SLOT_OCCUPIED(7007, "技能槽位已被占用"),
+    INSUFFICIENT_PROFICIENCY(7008, "熟练度不足，无法升级"),
+    SKILL_MAX_LEVEL(7009, "技能已满级"),
+    SKILL_NOT_EQUIPPED(7005, "技能未装备"),
 
     // 宗门相关 (8xxx)
     SECT_NOT_FOUND(8001, "宗门不存在"),

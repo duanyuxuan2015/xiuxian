@@ -26,3 +26,5 @@ replay_pid*
 nul
 
 .claude/settings.local.json
+backend/target/
+*.lst

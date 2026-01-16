@@ -6,7 +6,8 @@ package com.xiuxian.client.model;
 public class CharacterResponse {
     private Long characterId;
     private String playerName;
-    private Integer realmLevel;
+    private Integer realmLevel;  // 境界等级（1-14，凡人、炼气期、筑基期等）
+    private Integer realmSubLevel; // 境界层级（1-9层）
     private String realmName;
     private Long experience;  // 修为经验
     private Integer spiritualPower;
@@ -46,6 +47,7 @@ public class CharacterResponse {
     public Long getCharacterId() { return characterId; }
     public String getPlayerName() { return playerName; }
     public Integer getRealmLevel() { return realmLevel; }
+    public Integer getRealmSubLevel() { return realmSubLevel; }
     public String getRealmName() { return realmName; }
     public Long getExperience() { return experience; }
     public Long getCultivation() { return experience; }  // 兼容旧代码

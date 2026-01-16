@@ -2,6 +2,7 @@ package com.xiuxian.client;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.reflect.TypeToken;
 import com.xiuxian.client.model.*;
@@ -15,8 +16,14 @@ import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Scanner;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 凡人修仙文字游戏命令行客户端
@@ -31,6 +38,32 @@ public class XiuxianGameClient {
 
     // 会话文件路径（用户主目录下的.xiuxian_session.json）
     private static final String SESSION_FILE = System.getProperty("user.home") + File.separator + ".xiuxian_session.json";
+
+    /**
+     * 根据境界等级获取境界名称
+     */
+    private static String getRealmNameByLevel(Integer realmLevel) {
+        if (realmLevel == null) {
+            return "未知境界";
+        }
+        switch (realmLevel) {
+            case 1: return "凡人";
+            case 2: return "炼气期";
+            case 3: return "筑基期";
+            case 4: return "结丹期";
+            case 5: return "元婴期";
+            case 6: return "化神期";
+            case 7: return "炼虚期";
+            case 8: return "合体期";
+            case 9: return "大乘期";
+            case 10: return "渡劫期";
+            case 11: return "仙人";
+            case 12: return "金仙";
+            case 13: return "大罗金仙";
+            case 14: return "道祖之境";
+            default: return "境界" + realmLevel;
+        }
+    }
 
     public static void main(String[] args) {
         // 设置控制台编码为 UTF-8
@@ -575,6 +608,9 @@ public class XiuxianGameClient {
                 if (result.getAvailablePointsGained() != null && result.getAvailablePointsGained() > 0) {
                     System.out.println("  获得属性点: " + result.getAvailablePointsGained());
                 }
+
+                // 刷新角色信息
+                refreshCharacter();
             }
 
             // 显示突破提示
@@ -678,6 +714,9 @@ public class XiuxianGameClient {
                 if (result.getDefenseBonusGained() > 0) {
                     System.out.println("  防御力提升: " + result.getDefenseBonusGained());
                 }
+
+                // 刷新角色信息
+                refreshCharacter();
             } else {
                 System.out.println("\n❌ 突破失败！");
                 System.out.println("  道友请继续努力，提升境界后再尝试突破！");
@@ -1543,7 +1582,113 @@ public class XiuxianGameClient {
      */
     private static void learnSkill() throws IOException, InterruptedException {
         System.out.println("\n--- 学习技能 ---");
-        System.out.print("请输入技能ID: ");
+
+        // 1. 显示已学习的技能（避免重复学习）
+        System.out.println("\n📚 已学习的技能:");
+        String learnedResponse = ApiClient.get("/skill/learned/" + currentCharacterId);
+        JsonObject learnedJson = gson.fromJson(learnedResponse, JsonObject.class);
+
+        java.util.Set<Long> learnedSkillIds = new java.util.HashSet<>();
+
+        if (learnedJson.has("code") && learnedJson.get("code").getAsInt() == 200) {
+            if (learnedJson.has("data") && learnedJson.get("data").isJsonArray()) {
+                JsonArray array = learnedJson.get("data").getAsJsonArray();
+                if (array.size() > 0) {
+                    System.out.println("┌──────┬──────────────────┬──────────┬──────────┐");
+                    System.out.println("│ 技能ID │ 技能名称        │ 等级     │ 装备     │");
+                    System.out.println("├──────┼──────────────────┼──────────┼──────────┤");
+                    for (JsonElement element : array) {
+                        JsonObject skillObj = element.getAsJsonObject();
+                        Long id = skillObj.has("skillId") ? skillObj.get("skillId").getAsLong() : 0L;
+                        String name = skillObj.has("skillName") ? skillObj.get("skillName").getAsString() : "未知";
+                        int level = skillObj.has("skillLevel") ? skillObj.get("skillLevel").getAsInt() : 1;
+                        boolean equipped = skillObj.has("isEquipped") && skillObj.get("isEquipped").getAsBoolean();
+
+                        learnedSkillIds.add(id);
+                        System.out.printf("│ %-6d │ %-16s │ %-8d │ %-8s │\n",
+                                id, name, level, equipped ? "✓" : "");
+                    }
+                    System.out.println("└──────┴──────────────────┴──────────┴──────────┘");
+                    System.out.println("\n⚠️  以上技能已学习，请勿重复学习！");
+                } else {
+                    System.out.println("  暂未学习任何技能");
+                }
+            }
+        }
+
+        // 2. 显示背包中的技能物品
+        System.out.println("\n📦 背包中的技能物品:");
+        System.out.println("正在加载技能物品...");
+        String inventoryResponse = ApiClient.get("/inventory/character/" + currentCharacterId + "?itemType=skill");
+
+        JsonObject inventoryJson = gson.fromJson(inventoryResponse, JsonObject.class);
+        java.util.List<JsonObject> skillItems = new java.util.ArrayList<>();
+
+        if (inventoryJson.has("code") && inventoryJson.get("code").getAsInt() == 200) {
+            if (inventoryJson.has("data") && inventoryJson.get("data").isJsonArray()) {
+                JsonArray array = inventoryJson.get("data").getAsJsonArray();
+                for (JsonElement element : array) {
+                    skillItems.add(element.getAsJsonObject());
+                }
+            }
+        }
+
+        if (!skillItems.isEmpty()) {
+            System.out.println("\n┌──────┬──────────────────┬─────────────────────────────┬──────────┐");
+            System.out.println("│ 序号 │ 技能名称         │ 类型 | 元素 | 属性          │ 数量     │");
+            System.out.println("├──────┼──────────────────┼─────────────────────────────┼──────────┤");
+
+            for (int i = 0; i < skillItems.size(); i++) {
+                JsonObject item = skillItems.get(i);
+                String itemName = item.has("itemName") && !item.get("itemName").getAsString().isEmpty() ?
+                                 item.get("itemName").getAsString() : "未知技能";
+
+                // 获取技能详情
+                String detail = item.has("itemDetail") ? item.get("itemDetail").getAsString() : "技能秘籍";
+
+                int quantity = item.has("quantity") ? item.get("quantity").getAsInt() : 1;
+                Long itemId = item.has("itemId") ? item.get("itemId").getAsLong() : 0L;
+
+                // 标记已学习的技能
+                String status = "";
+                if (learnedSkillIds.contains(itemId)) {
+                    status = " [已学]";
+                }
+
+                // 截断过长的详情
+                if (detail.length() > 25) {
+                    detail = detail.substring(0, 22) + "...";
+                }
+
+                System.out.printf("│ %-4d │ %-16s │ %-25s │ %-8d │\n",
+                        i + 1, itemName + status, detail, quantity);
+            }
+            System.out.println("└──────┴──────────────────┴─────────────────────────────┴──────────┘");
+
+            // 显示技能ID列表
+            System.out.println("\n📋 可学习的技能ID:");
+            System.out.println("─────────────────────────────────");
+            for (int i = 0; i < skillItems.size(); i++) {
+                JsonObject item = skillItems.get(i);
+                Long itemId = item.has("itemId") ? item.get("itemId").getAsLong() : 0L;
+                String itemName = item.has("itemName") && !item.get("itemName").getAsString().isEmpty() ?
+                                 item.get("itemName").getAsString() : "未知技能";
+
+                String status = learnedSkillIds.contains(itemId) ? " [已学]" : "";
+                System.out.printf("  [%d] %s%s\n", itemId, itemName, status);
+            }
+            System.out.println("\n💡 提示：请输入技能ID（方括号中的数字）进行学习");
+        } else {
+            System.out.println("\n背包中没有技能物品！");
+            pressEnterToContinue();
+            return;
+        }
+
+        // 显示当前角色境界信息（调试用）
+        System.out.println("\n📊 当前角色信息:");
+        System.out.println("  境界等级: " + currentCharacter.getRealmLevel() + " (" + getRealmNameByLevel(currentCharacter.getRealmLevel()) + ")");
+
+        System.out.print("\n请输入技能ID: ");
         String skillIdStr = scanner.nextLine();
 
         try {
@@ -1554,11 +1699,36 @@ public class XiuxianGameClient {
             request.addProperty("skillId", skillId);
 
             String response = ApiClient.post("/skill/learn", request);
-            SkillResponse result = ApiClient.parseResponse(response, SkillResponse.class);
 
-            if (result != null) {
-                System.out.println("\n✅ 学习成功！");
-                System.out.println("技能: " + result.getSkillName());
+            // 解析响应
+            JsonObject responseObj = gson.fromJson(response, JsonObject.class);
+            if (responseObj.has("code")) {
+                int code = responseObj.get("code").getAsInt();
+                if (code == 200) {
+                    // 学习成功
+                    if (responseObj.has("data") && !responseObj.get("data").isJsonNull()) {
+                        JsonObject data = responseObj.get("data").getAsJsonObject();
+                        String skillName = data.has("skillName") ? data.get("skillName").getAsString() : "未知技能";
+                        System.out.println("\n✅ 学习成功！");
+                        System.out.println("技能: " + skillName);
+                    }
+                } else {
+                    // 学习失败，显示错误信息
+                    String message = responseObj.has("message") ?
+                            responseObj.get("message").getAsString() : "学习失败";
+
+                    // 将境界等级替换为中文境界
+                    message = message.replaceAll("需要境界等级: (\\d+)", "需要境界: $1");
+                    // 提取数字并转换为中文
+                    Pattern pattern = Pattern.compile("需要境界: (\\d+)");
+                    Matcher matcher = pattern.matcher(message);
+                    if (matcher.find()) {
+                        int level = Integer.parseInt(matcher.group(1));
+                        message = message.replaceFirst("需要境界: \\d+", "需要境界: " + getRealmNameByLevel(level));
+                    }
+
+                    System.out.println("\n❌ " + message);
+                }
             }
         } catch (NumberFormatException e) {
             System.out.println("\n❌ 无效的技能ID！");
@@ -1572,38 +1742,185 @@ public class XiuxianGameClient {
      */
     private static void equipSkill() throws IOException, InterruptedException {
         System.out.println("\n--- 装备技能 ---");
-        System.out.print("请输入角色技能ID: ");
-        String charSkillIdStr = scanner.nextLine();
-        System.out.print("请输入槽位索引 (0-7): ");
-        String slotStr = scanner.nextLine();
+
+        // 1. 获取已装备的技能
+        String equippedResponse = ApiClient.get("/skill/equipped/" + currentCharacterId);
+        JsonObject equippedJson = gson.fromJson(equippedResponse, JsonObject.class);
+        java.util.Map<Integer, JsonObject> equippedSkills = new java.util.HashMap<>();
+
+        if (equippedJson.has("code") && equippedJson.get("code").getAsInt() == 200) {
+            if (equippedJson.has("data") && equippedJson.get("data").isJsonArray()) {
+                JsonArray array = equippedJson.get("data").getAsJsonArray();
+                for (JsonElement element : array) {
+                    JsonObject skillObj = element.getAsJsonObject();
+                    Integer slotIndex = skillObj.has("slotIndex") && !skillObj.get("slotIndex").isJsonNull() ?
+                                        skillObj.get("slotIndex").getAsInt() : null;
+                    if (slotIndex != null) {
+                        equippedSkills.put(slotIndex, skillObj);
+                    }
+                }
+            }
+        }
+
+        // 2. 显示技能槽位状态
+        System.out.println("\n📊 技能槽位状态:");
+        if (equippedSkills.isEmpty()) {
+            System.out.println("  所有槽位空闲");
+        } else {
+            for (int i = 1; i <= 8; i++) {
+                String slotType = (i <= 5) ? "[攻击]" : "[防御/辅助]";
+                if (equippedSkills.containsKey(i)) {
+                    JsonObject skill = equippedSkills.get(i);
+                    String name = skill.has("skillName") ? skill.get("skillName").getAsString() : "未知";
+                    int level = skill.has("skillLevel") ? skill.get("skillLevel").getAsInt() : 1;
+                    System.out.printf("  槽位%d %s: %s (Lv.%d)\n", i, slotType, name, level);
+                } else {
+                    System.out.printf("  槽位%d %s: [空闲]\n", i, slotType);
+                }
+            }
+        }
+
+        // 3. 获取已学习的技能
+        String learnedResponse = ApiClient.get("/skill/learned/" + currentCharacterId);
+        JsonObject learnedJson = gson.fromJson(learnedResponse, JsonObject.class);
+        java.util.List<JsonObject> learnedSkills = new java.util.ArrayList<>();
+
+        if (learnedJson.has("code") && learnedJson.get("code").getAsInt() == 200) {
+            if (learnedJson.has("data") && learnedJson.get("data").isJsonArray()) {
+                JsonArray array = learnedJson.get("data").getAsJsonArray();
+                for (JsonElement element : array) {
+                    learnedSkills.add(element.getAsJsonObject());
+                }
+            }
+        }
+
+        // 4. 显示已学习的技能
+        if (learnedSkills.isEmpty()) {
+            System.out.println("\n❌ 你还没有学习任何技能！");
+            pressEnterToContinue();
+            return;
+        }
+
+        System.out.println("\n📚 已学习的技能:");
+        System.out.println("┌──────┬──────────────────┬──────────┬──────────┬──────────┬──────────┐");
+        System.out.println("│ 序号 │ 技能名称         │ 类型     │ 等级     │ 熟练度   │ 状态     │");
+        System.out.println("├──────┼──────────────────┼──────────┼──────────┼──────────┼──────────┤");
+
+        java.util.Map<Long, JsonObject> skillMap = new java.util.HashMap<>();
+        for (int i = 0; i < learnedSkills.size(); i++) {
+            JsonObject skill = learnedSkills.get(i);
+            Long charSkillId = skill.has("characterSkillId") ? skill.get("characterSkillId").getAsLong() : 0L;
+            String name = skill.has("skillName") ? skill.get("skillName").getAsString() : "未知";
+            String functionType = skill.has("functionType") ? skill.get("functionType").getAsString() : "未知";
+            int level = skill.has("skillLevel") ? skill.get("skillLevel").getAsInt() : 1;
+            int proficiency = skill.has("proficiency") ? skill.get("proficiency").getAsInt() : 0;
+            boolean isEquipped = skill.has("isEquipped") && skill.get("isEquipped").getAsBoolean();
+            Integer slotIndex = skill.has("slotIndex") && !skill.get("slotIndex").isJsonNull() ?
+                               skill.get("slotIndex").getAsInt() : null;
+
+            String status = isEquipped ? (slotIndex != null ? "已装备(槽" + slotIndex + ")" : "已装备") : "未装备";
+
+            System.out.printf("│ %-4d │ %-16s │ %-8s │ %-8d │ %-8d │ %-8s │\n",
+                    i + 1, name, functionType, level, proficiency, status);
+
+            skillMap.put(charSkillId, skill);
+        }
+        System.out.println("└──────┴──────────────────┴──────────┴──────────┴──────────┴──────────┘");
+
+        // 5. 用户输入
+        System.out.print("\n请输入要装备的技能序号 (直接回车返回): ");
+        String skillSeqStr = scanner.nextLine().trim();
+
+        if (skillSeqStr.isEmpty()) {
+            return;
+        }
 
         try {
-            Long charSkillId = Long.parseLong(charSkillIdStr);
-            Integer slot = Integer.parseInt(slotStr);
-
-            if (slot < 0 || slot > 7) {
-                System.out.println("\n❌ 槽位索引必须在0-7之间！");
+            int skillSeq = Integer.parseInt(skillSeqStr);
+            if (skillSeq < 1 || skillSeq > learnedSkills.size()) {
+                System.out.println("\n❌ 无效的技能序号！");
                 pressEnterToContinue();
                 return;
             }
 
+            JsonObject selectedSkill = learnedSkills.get(skillSeq - 1);
+            Long charSkillId = selectedSkill.has("characterSkillId") ?
+                               selectedSkill.get("characterSkillId").getAsLong() : 0L;
+            String skillName = selectedSkill.has("skillName") ?
+                              selectedSkill.get("skillName").getAsString() : "未知";
+
+            // 检查是否已装备
+            boolean currentlyEquipped = selectedSkill.has("isEquipped") &&
+                                        selectedSkill.get("isEquipped").getAsBoolean();
+            Integer currentSlot = selectedSkill.has("slotIndex") && !selectedSkill.get("slotIndex").isJsonNull() ?
+                                   selectedSkill.get("slotIndex").getAsInt() : null;
+
+            if (currentlyEquipped && currentSlot != null) {
+                System.out.printf("\n⚠️  技能 [%s] 当前已装备在槽位%d\n", skillName, currentSlot);
+                System.out.print("是否要更换槽位？(y/n): ");
+                String confirm = scanner.nextLine().trim();
+                if (!confirm.equalsIgnoreCase("y")) {
+                    return;
+                }
+            }
+
+            System.out.print("\n请输入目标槽位 (1-8, 直接回车卸下): ");
+            String slotStr = scanner.nextLine().trim();
+
+            if (slotStr.isEmpty()) {
+                // 卸下技能
+                unequipSkill(charSkillId);
+                return;
+            }
+
+            Integer slot = Integer.parseInt(slotStr);
+            if (slot < 1 || slot > 8) {
+                System.out.println("\n❌ 槽位索引必须在1-8之间！");
+                pressEnterToContinue();
+                return;
+            }
+
+            // 装备技能
             JsonObject request = new JsonObject();
             request.addProperty("characterId", currentCharacterId);
             request.addProperty("characterSkillId", charSkillId);
             request.addProperty("slotIndex", slot);
 
             String response = ApiClient.post("/skill/equip", request);
-            SkillResponse result = ApiClient.parseResponse(response, SkillResponse.class);
+            JsonObject resultObj = gson.fromJson(response, JsonObject.class);
 
-            if (result != null) {
+            if (resultObj.has("code") && resultObj.get("code").getAsInt() == 200) {
                 System.out.println("\n✅ 装备成功！");
-                System.out.println("技能: " + result.getSkillName() + " 已装备到槽位 " + slot);
+                System.out.printf("技能 [%s] 已装备到槽位 %d\n", skillName, slot);
+            } else {
+                String message = resultObj.has("message") ? resultObj.get("message").getAsString() : "装备失败";
+                System.out.println("\n❌ " + message);
             }
+
         } catch (NumberFormatException e) {
             System.out.println("\n❌ 无效的输入！");
         }
 
         pressEnterToContinue();
+    }
+
+    /**
+     * 卸下技能（内部调用）
+     */
+    private static void unequipSkill(Long characterSkillId) throws IOException, InterruptedException {
+        JsonObject request = new JsonObject();
+        request.addProperty("characterId", currentCharacterId);
+        request.addProperty("characterSkillId", characterSkillId);
+
+        String response = ApiClient.post("/skill/unequip", request);
+        JsonObject resultObj = gson.fromJson(response, JsonObject.class);
+
+        if (resultObj.has("code") && resultObj.get("code").getAsInt() == 200) {
+            System.out.println("\n✅ 卸下成功！");
+        } else {
+            String message = resultObj.has("message") ? resultObj.get("message").getAsString() : "卸下失败";
+            System.out.println("\n❌ " + message);
+        }
     }
 
     /**

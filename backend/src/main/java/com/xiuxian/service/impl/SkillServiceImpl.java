@@ -7,16 +7,19 @@ import com.xiuxian.dto.request.EquipSkillRequest;
 import com.xiuxian.dto.request.LearnSkillRequest;
 import com.xiuxian.dto.response.SkillResponse;
 import com.xiuxian.entity.PlayerCharacter;
+import com.xiuxian.entity.Realm;
 // ... (imports)
 
 // ...
 
 // ...
+import com.xiuxian.config.CombatConstants;
 import com.xiuxian.entity.CharacterSkill;
 import com.xiuxian.entity.Skill;
 import com.xiuxian.mapper.CharacterSkillMapper;
 import com.xiuxian.mapper.SkillMapper;
 import com.xiuxian.service.CharacterService;
+import com.xiuxian.service.RealmService;
 import com.xiuxian.service.SkillService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,10 +44,14 @@ public class SkillServiceImpl extends ServiceImpl<CharacterSkillMapper, Characte
 
     private final CharacterService characterService;
     private final SkillMapper skillMapper;
+    private final RealmService realmService;
 
-    public SkillServiceImpl(@Lazy CharacterService characterService, SkillMapper skillMapper) {
+    public SkillServiceImpl(@Lazy CharacterService characterService,
+                            SkillMapper skillMapper,
+                            RealmService realmService) {
         this.characterService = characterService;
         this.skillMapper = skillMapper;
+        this.realmService = realmService;
     }
 
     @Override
@@ -54,7 +61,9 @@ public class SkillServiceImpl extends ServiceImpl<CharacterSkillMapper, Characte
             throw new BusinessException(1003, "角色不存在");
         }
 
-        int realmLevel = character.getRealmLevel();
+        // 获取真正的境界等级（通过realmId查询realm表）
+        Realm realm = realmService.getById(character.getRealmId());
+        int realmLevel = realm != null ? realm.getRealmLevel() : 1;
 
         // 获取所有可学习的技能（按阶位排序）
         LambdaQueryWrapper<Skill> skillWrapper = new LambdaQueryWrapper<>();
@@ -142,7 +151,14 @@ public class SkillServiceImpl extends ServiceImpl<CharacterSkillMapper, Characte
         }
 
         // 3. 验证境界
-        if (character.getRealmLevel() < skill.getTier()) {
+        // 获取真正的境界等级（通过realmId查询realm表）
+        Realm realm = realmService.getById(character.getRealmId());
+        int realmLevel = realm != null ? realm.getRealmLevel() : 1;
+
+        logger.debug("学习技能境界检查: characterId={}, characterRealmLevel={}, skillId={}, skillTier={}, skillName={}",
+                characterId, realmLevel, skillId, skill.getTier(), skill.getSkillName());
+
+        if (realmLevel < skill.getTier()) {
             throw new BusinessException(7002, "境界不足，需要境界等级: " + skill.getTier());
         }
 
@@ -190,6 +206,25 @@ public class SkillServiceImpl extends ServiceImpl<CharacterSkillMapper, Characte
             throw new BusinessException(7004, "角色技能不存在");
         }
 
+        // 2.5. 验证槽位类型与技能类型是否匹配
+        Skill skill = skillMapper.selectById(charSkill.getSkillId());
+        if (skill == null) {
+            throw new BusinessException(7001, "技能数据不存在");
+        }
+
+        if (!CombatConstants.canEquipToSlot(skill.getFunctionType(), slotIndex)) {
+            throw new BusinessException(7006,
+                String.format("技能类型[%s]不能装备到槽位%d，槽位%d-%d为%s槽位，%d-%d为%s槽位",
+                    skill.getFunctionType(),
+                    slotIndex,
+                    CombatConstants.ATTACK_SLOT_MIN,
+                    CombatConstants.ATTACK_SLOT_MAX,
+                    "攻击",
+                    CombatConstants.SUPPORT_SLOT_MIN,
+                    CombatConstants.SUPPORT_SLOT_MAX,
+                    "防御/辅助"));
+        }
+
         // 3. 检查槽位是否已有技能，如有则先卸下
         LambdaQueryWrapper<CharacterSkill> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(CharacterSkill::getCharacterId, characterId)
@@ -209,7 +244,6 @@ public class SkillServiceImpl extends ServiceImpl<CharacterSkillMapper, Characte
         charSkill.setSlotIndex(slotIndex);
         this.updateById(charSkill);
 
-        Skill skill = skillMapper.selectById(charSkill.getSkillId());
         logger.info("装备技能: characterId={}, slot={}, skillId={}, skillName={}",
                 characterId, slotIndex, skill.getSkillId(), skill.getSkillName());
 
@@ -262,13 +296,13 @@ public class SkillServiceImpl extends ServiceImpl<CharacterSkillMapper, Characte
 
         // 检查是否达到最大等级
         if (charSkill.getSkillLevel() >= 99) {
-            throw new BusinessException(7006, "技能已达到最大等级");
+            throw new BusinessException(7009, "技能已达到最大等级");
         }
 
         // 检查熟练度是否足够
         int requiredProficiency = charSkill.getSkillLevel() * 100;
         if (charSkill.getProficiency() < requiredProficiency) {
-            throw new BusinessException(7007,
+            throw new BusinessException(7008,
                     "熟练度不足，需要: " + requiredProficiency + "，当前: " + charSkill.getProficiency());
         }
 

@@ -119,6 +119,31 @@ app:
   idle-combat:
     max-battles: 5  # 挂机最大战斗轮数
 
+  # 宗门任务配置
+  sect-task:
+    daily-accept-limit: 30 # 每日任务接取上限
+
+  # 宗门职位升级配置
+  position-promotion:
+    requirements:
+      - position-level: 1            # 弟子 → 内门弟子
+        required-reputation: 100      # 所需声望值
+        contribution-cost: 500        # 贡献值消耗
+        spirit-stones-cost: 1000      # 灵石消耗
+      - position-level: 2            # 内门弟子 → 核心弟子
+        required-reputation: 300
+        contribution-cost: 1500
+        spirit-stones-cost: 3000
+      - position-level: 3            # 核心弟子 → 长老
+        required-reputation: 800
+        contribution-cost: 5000
+        spirit-stones-cost: 10000
+      - position-level: 4            # 长老 → 掌门 (暂不开放)
+        required-reputation: 9999
+        contribution-cost: 99999
+        spirit-stones-cost: 999999
+        enabled: false               # 禁用此升级路径
+
   # 属性计算配置（FR-008）
   attributes:
     # 基础属性值

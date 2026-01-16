@@ -9,13 +9,20 @@ import com.xiuxian.entity.Monster;
 import com.xiuxian.entity.PlayerCharacter;
 import com.xiuxian.entity.Realm;
 import com.xiuxian.mapper.CombatRecordMapper;
+import com.xiuxian.mapper.CharacterSkillMapper;
+import com.xiuxian.mapper.EquipmentMapper;
+import com.xiuxian.mapper.SkillMapper;
 import com.xiuxian.service.CharacterService;
 import com.xiuxian.service.MonsterService;
 import com.xiuxian.service.RealmService;
 import com.xiuxian.service.MonsterDropService;
 import com.xiuxian.service.InventoryService;
+import com.xiuxian.service.SectTaskService;
+import com.xiuxian.service.SkillService;
+import com.xiuxian.dto.response.SkillResponse;
+import com.xiuxian.entity.CharacterSkill;
 import com.xiuxian.entity.Equipment;
-import com.xiuxian.mapper.EquipmentMapper;
+import com.xiuxian.entity.Skill;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -49,6 +56,14 @@ public class CombatServiceImplTest {
     private InventoryService inventoryService;
     @Mock
     private EquipmentMapper equipmentMapper;
+    @Mock
+    private SectTaskService sectTaskService;
+    @Mock
+    private SkillService skillService;
+    @Mock
+    private CharacterSkillMapper characterSkillMapper;
+    @Mock
+    private SkillMapper skillMapper;
 
     @InjectMocks
     private CombatServiceImpl combatService;
@@ -103,6 +118,9 @@ public class CombatServiceImplTest {
         realm.setAttackBonus(0);
         realm.setDefenseBonus(0);
         lenient().when(realmService.getById(1)).thenReturn(realm);
+
+        // Mock SkillService to return empty skill list by default
+        lenient().when(skillService.getEquippedSkills(any())).thenReturn(new ArrayList<>());
     }
 
     @Test
@@ -1293,5 +1311,136 @@ public class CombatServiceImplTest {
 
         // 如果30次都没观察到暴击，测试仍然通过（只是概率问题）
         System.out.println("提示: 在30次尝试中未观察到暴击（概率事件）");
+    }
+
+    /**
+     * 测试装备攻击技能时优先使用技能
+     */
+    @Test
+    void testExecuteCombat_WithAttackSkill_UsesSkillFirst() {
+        // 准备技能数据
+        CharacterSkill charSkill = new CharacterSkill();
+        charSkill.setCharacterSkillId(1L);
+        charSkill.setCharacterId(1L);
+        charSkill.setSkillId(1L);
+        charSkill.setSkillLevel(1);
+        charSkill.setProficiency(0);
+
+        Skill skill = new Skill();
+        skill.setSkillId(1L);
+        skill.setSkillName("雷霆剑诀");
+        skill.setFunctionType("攻击");
+        skill.setBaseDamage(30);
+        skill.setSkillMultiplier(new java.math.BigDecimal("1.5"));
+        skill.setSpiritualCost(10);
+        skill.setDamageGrowthRate(new java.math.BigDecimal("0.1"));
+
+        SkillResponse skillResponse = new SkillResponse();
+        skillResponse.setCharacterSkillId(1L);
+        skillResponse.setSkillId(1L);
+        skillResponse.setSkillName("雷霆剑诀");
+        skillResponse.setFunctionType("攻击");
+        skillResponse.setSlotIndex(1);
+        skillResponse.setSkillLevel(1);
+
+        // Mock返回已装备的技能
+        when(skillService.getEquippedSkills(1L)).thenReturn(List.of(skillResponse));
+        when(characterSkillMapper.selectById(1L)).thenReturn(charSkill);
+        when(skillMapper.selectById(1L)).thenReturn(skill);
+
+        // 角色有足够灵力
+        character.setSpiritualPower(50);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(monsterService.getById(1L)).thenReturn(monster);
+
+        CombatStartRequest request = new CombatStartRequest();
+        request.setCharacterId(1L);
+        request.setMonsterId(1L);
+        request.setCombatMode("手动");
+
+        CombatResponse response = combatService.startCombat(request);
+
+        assertNotNull(response);
+        assertTrue(response.getVictory());
+        assertNotNull(response.getCombatLog());
+
+        // 验证使用了技能（日志中包含技能名称）
+        boolean usedSkill = response.getCombatLog().stream()
+                .anyMatch(log -> log.contains("雷霆剑诀") && log.contains("使用"));
+        assertTrue(usedSkill, "应该优先使用攻击技能");
+    }
+
+    /**
+     * 测试技能冷却机制
+     */
+    @Test
+    void testExecuteCombat_SkillCooldown_CannotReuseInCooldown() {
+        // 准备技能数据（低伤害技能以便多回合）
+        CharacterSkill charSkill = new CharacterSkill();
+        charSkill.setCharacterSkillId(1L);
+        charSkill.setCharacterId(1L);
+        charSkill.setSkillId(1L);
+        charSkill.setSkillLevel(1);
+        charSkill.setProficiency(0);
+
+        Skill skill = new Skill();
+        skill.setSkillId(1L);
+        skill.setSkillName("基础剑法");
+        skill.setFunctionType("攻击");
+        skill.setBaseDamage(5);  // 低伤害
+        skill.setSkillMultiplier(new java.math.BigDecimal("1.0"));
+        skill.setSpiritualCost(5);
+        skill.setDamageGrowthRate(new java.math.BigDecimal("0.1"));
+
+        SkillResponse skillResponse = new SkillResponse();
+        skillResponse.setCharacterSkillId(1L);
+        skillResponse.setSkillId(1L);
+        skillResponse.setSkillName("基础剑法");
+        skillResponse.setFunctionType("攻击");
+        skillResponse.setSlotIndex(1);
+        skillResponse.setSkillLevel(1);
+
+        // Mock返回已装备的技能
+        when(skillService.getEquippedSkills(1L)).thenReturn(List.of(skillResponse));
+        when(characterSkillMapper.selectById(1L)).thenReturn(charSkill);
+        when(skillMapper.selectById(1L)).thenReturn(skill);
+
+        character.setSpiritualPower(100);
+
+        when(characterService.getById(1L)).thenReturn(character);
+
+        // 高生命值的妖兽，确保多回合
+        Monster highHpMonster = new Monster();
+        highHpMonster.setMonsterId(1L);
+        highHpMonster.setMonsterName("TankSlime");
+        highHpMonster.setStaminaCost(10);
+        highHpMonster.setHp(200);  // 高生命值
+        highHpMonster.setAttackPower(1);  // 低攻击，避免战斗过快结束
+        highHpMonster.setDefensePower(0);
+        highHpMonster.setExpReward(100);
+        highHpMonster.setSpiritStonesReward(10);
+        highHpMonster.setRealmId(1);
+
+        when(monsterService.getById(1L)).thenReturn(highHpMonster);
+
+        CombatStartRequest request = new CombatStartRequest();
+        request.setCharacterId(1L);
+        request.setMonsterId(1L);
+        request.setCombatMode("手动");
+
+        CombatResponse response = combatService.startCombat(request);
+
+        assertNotNull(response);
+
+        // 统计技能使用次数
+        long skillUsageCount = response.getCombatLog().stream()
+                .filter(log -> log.contains("基础剑法") && log.contains("使用"))
+                .count();
+
+        // 由于冷却机制，技能不应该每回合都使用
+        // 如果没有冷却，5-6回合应该使用5-6次技能
+        // 有4回合冷却，应该只使用1-2次
+        assertTrue(skillUsageCount < 3, "技能冷却机制应该限制技能使用频率，实际使用次数: " + skillUsageCount);
     }
 }

@@ -128,7 +128,12 @@ public class CharacterServiceImpl extends ServiceImpl<CharacterMapper, PlayerCha
         logger.info("创建角色成功: characterId={}, playerName={}", character.getCharacterId(), character.getPlayerName());
 
         // 7. 返回响应
-        return CharacterResponse.fromEntity(character, initialRealm.getRealmName(), null);
+        CharacterResponse response = CharacterResponse.fromEntity(character, initialRealm.getRealmName(), null);
+        // 设置真正的境界等级
+        response.setRealmLevel(initialRealm.getRealmLevel());
+        // 设置境界层级
+        response.setRealmSubLevel(character.getRealmLevel());
+        return response;
     }
 
     @Override
@@ -142,6 +147,7 @@ public class CharacterServiceImpl extends ServiceImpl<CharacterMapper, PlayerCha
         // 2. 查询境界信息
         Realm realm = realmService.getById(character.getRealmId());
         String realmName = realm != null ? realm.getRealmName() : "未知";
+        Integer realmLevel = realm != null ? realm.getRealmLevel() : 1; // 获取真正的境界等级（1-14）
 
         // 3. 查询宗门信息
         String sectName = null;
@@ -152,6 +158,10 @@ public class CharacterServiceImpl extends ServiceImpl<CharacterMapper, PlayerCha
 
         // 4. 构建响应，包含攻击力和防御力
         CharacterResponse response = CharacterResponse.fromEntity(character, realmName, sectName);
+        // 覆盖realmLevel为真正的境界等级（而不是层级）
+        response.setRealmLevel(realmLevel);
+        // 设置境界层级（1-9层）
+        response.setRealmSubLevel(character.getRealmLevel());
         response.setAttack(calculateAttack(character));
         response.setDefense(calculateDefense(character));
 

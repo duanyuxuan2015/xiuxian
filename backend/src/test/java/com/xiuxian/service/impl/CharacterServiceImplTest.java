@@ -238,6 +238,7 @@ public class CharacterServiceImplTest {
         Realm realm = new Realm();
         realm.setId(1);
         realm.setRealmName("Mortal");
+        realm.setRealmLevel(1);  // 设置境界等级
         realm.setAttackBonus(5);   // 境界攻击加成5
         realm.setDefenseBonus(3);  // 境界防御加成3
 
@@ -288,6 +289,7 @@ public class CharacterServiceImplTest {
         Realm realm = new Realm();
         realm.setId(2);
         realm.setRealmName("Qi Condensation");
+        realm.setRealmLevel(2);  // 设置境界等级
         realm.setAttackBonus(5);   // 境界攻击加成5
         realm.setDefenseBonus(3);  // 境界防御加成3
 

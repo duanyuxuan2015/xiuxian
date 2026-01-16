@@ -11,7 +11,8 @@ public class CharacterResponse {
     private Long characterId;
     private String playerName;
     private String realmName;
-    private Integer realmLevel;
+    private Integer realmLevel;  // 境界等级（1-14，凡人、炼气期、筑基期等）
+    private Integer realmSubLevel; // 境界层级（1-9层，如炼气期3层）
     private Long experience;
     private Integer availablePoints;
     private Integer spiritualPower;
@@ -115,6 +116,14 @@ public class CharacterResponse {
 
     public void setRealmLevel(Integer realmLevel) {
         this.realmLevel = realmLevel;
+    }
+
+    public Integer getRealmSubLevel() {
+        return realmSubLevel;
+    }
+
+    public void setRealmSubLevel(Integer realmSubLevel) {
+        this.realmSubLevel = realmSubLevel;
     }
 
     public Long getExperience() {

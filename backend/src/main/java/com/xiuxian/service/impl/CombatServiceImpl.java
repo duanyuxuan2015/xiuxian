@@ -4,15 +4,21 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.xiuxian.common.exception.BusinessException;
+import com.xiuxian.config.CombatConstants;
 import com.xiuxian.dto.request.CombatStartRequest;
 import com.xiuxian.dto.response.CombatResponse;
+import com.xiuxian.dto.response.SkillResponse;
+import com.xiuxian.entity.CharacterSkill;
 import com.xiuxian.entity.PlayerCharacter;
 import com.xiuxian.entity.CombatRecord;
 import com.xiuxian.entity.Monster;
 import com.xiuxian.entity.Equipment;
+import com.xiuxian.entity.Realm;
+import com.xiuxian.entity.Skill;
+import com.xiuxian.mapper.CharacterSkillMapper;
 import com.xiuxian.mapper.CombatRecordMapper;
 import com.xiuxian.mapper.EquipmentMapper;
-import com.xiuxian.entity.Realm;
+import com.xiuxian.mapper.SkillMapper;
 import com.xiuxian.service.CharacterService;
 import com.xiuxian.service.CombatService;
 import com.xiuxian.service.MonsterService;
@@ -20,6 +26,7 @@ import com.xiuxian.service.RealmService;
 import com.xiuxian.service.MonsterDropService;
 import com.xiuxian.service.InventoryService;
 import com.xiuxian.service.SectTaskService;
+import com.xiuxian.service.SkillService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
@@ -28,7 +35,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 /**
@@ -50,12 +59,16 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
     private final InventoryService inventoryService;
     private final EquipmentMapper equipmentMapper;
     private final SectTaskService sectTaskService;
+    private final SkillService skillService;
+    private final CharacterSkillMapper characterSkillMapper;
+    private final SkillMapper skillMapper;
     private final Random random = new Random();
 
     public CombatServiceImpl(@Lazy CharacterService characterService, MonsterService monsterService,
                              RealmService realmService, MonsterDropService monsterDropService,
                              InventoryService inventoryService, EquipmentMapper equipmentMapper,
-                             @Lazy SectTaskService sectTaskService) {
+                             @Lazy SectTaskService sectTaskService, @Lazy SkillService skillService,
+                             CharacterSkillMapper characterSkillMapper, SkillMapper skillMapper) {
         this.characterService = characterService;
         this.monsterService = monsterService;
         this.realmService = realmService;
@@ -63,6 +76,9 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
         this.inventoryService = inventoryService;
         this.equipmentMapper = equipmentMapper;
         this.sectTaskService = sectTaskService;
+        this.skillService = skillService;
+        this.characterSkillMapper = characterSkillMapper;
+        this.skillMapper = skillMapper;
     }
 
     @Override
@@ -234,6 +250,22 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
     private CombatResult executeCombat(PlayerCharacter character, Monster monster) {
         CombatResult result = new CombatResult();
         result.combatLog = new ArrayList<>();
+        result.skillsUsed = new ArrayList<>();
+        result.slotCooldowns = new HashMap<>();
+
+        // 初始化：所有槽位冷却为0
+        for (int i = 1; i <= 8; i++) {
+            result.slotCooldowns.put(i, 0);
+        }
+
+        // 获取已装备的技能
+        List<SkillResponse> equippedSkills = skillService.getEquippedSkills(character.getCharacterId());
+        Map<Integer, SkillResponse> skillSlots = new HashMap<>();
+        for (SkillResponse skill : equippedSkills) {
+            if (skill.getSlotIndex() != null) {
+                skillSlots.put(skill.getSlotIndex(), skill);
+            }
+        }
 
         int characterHp = character.getHealth();
         int monsterHp = monster.getHp();
@@ -250,20 +282,50 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
         while (characterHp > 0 && monsterHp > 0 && turn < MAX_TURNS) {
             turn++;
 
-            // 角色攻击
-            boolean isCritical = random.nextInt(100) < CRITICAL_RATE_BASE;
-            int damage = calculateDamage(characterAttack, monster.getDefensePower(), isCritical);
-            monsterHp -= damage;
-            result.damageDealt += damage;
-            if (isCritical) {
-                result.criticalHits++;
-                result.combatLog.add(String.format("回合%d: %s暴击！对%s造成%d点伤害 (%s剩余生命: %d)",
-                        turn, character.getPlayerName(), monster.getMonsterName(), damage,
+            // 每回合开始，更新冷却状态
+            updateCooldowns(result.slotCooldowns);
+
+            // 角色攻击（优先使用技能）
+            SkillUsageResult skillResult = tryUseSkill(character, skillSlots, result.slotCooldowns);
+            int damage;
+
+            if (skillResult.usedSkill) {
+                // 使用技能攻击
+                damage = calculateSkillDamage(character, skillResult.skill, skillResult.charSkill);
+                result.skillsUsed.add(skillResult.skill.getSkillName());
+
+                // 暴击判断
+                boolean isCritical = random.nextInt(100) < CRITICAL_RATE_BASE;
+                if (isCritical) {
+                    damage = (int) (damage * 1.5);
+                    result.criticalHits++;
+                }
+
+                monsterHp -= damage;
+                result.damageDealt += damage;
+
+                result.combatLog.add(String.format("回合%d: %s使用[%s](Lv.%d)，对%s造成%d点伤害！(%s剩余生命: %d)",
+                        turn, character.getPlayerName(), skillResult.skill.getSkillName(),
+                        skillResult.charSkill.getSkillLevel(),
+                        monster.getMonsterName(), damage,
                         monster.getMonsterName(), Math.max(0, monsterHp)));
             } else {
-                result.combatLog.add(String.format("回合%d: %s攻击%s，造成%d点伤害 (%s剩余生命: %d)",
-                        turn, character.getPlayerName(), monster.getMonsterName(), damage,
-                        monster.getMonsterName(), Math.max(0, monsterHp)));
+                // 普通攻击
+                boolean isCritical = random.nextInt(100) < CRITICAL_RATE_BASE;
+                damage = calculateDamage(characterAttack, monster.getDefensePower(), isCritical);
+                monsterHp -= damage;
+                result.damageDealt += damage;
+
+                if (isCritical) {
+                    result.criticalHits++;
+                    result.combatLog.add(String.format("回合%d: %s暴击！对%s造成%d点伤害 (%s剩余生命: %d)",
+                            turn, character.getPlayerName(), monster.getMonsterName(), damage,
+                            monster.getMonsterName(), Math.max(0, monsterHp)));
+                } else {
+                    result.combatLog.add(String.format("回合%d: %s攻击%s，造成%d点伤害 (%s剩余生命: %d)",
+                            turn, character.getPlayerName(), monster.getMonsterName(), damage,
+                            monster.getMonsterName(), Math.max(0, monsterHp)));
+                }
             }
 
             if (monsterHp <= 0) {
@@ -290,6 +352,112 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
         }
 
         return result;
+    }
+
+    /**
+     * 更新技能冷却状态
+     */
+    private void updateCooldowns(Map<Integer, Integer> slotCooldowns) {
+        for (Map.Entry<Integer, Integer> entry : slotCooldowns.entrySet()) {
+            if (entry.getValue() > 0) {
+                entry.setValue(entry.getValue() - 1);
+            }
+        }
+    }
+
+    /**
+     * 尝试使用技能
+     */
+    private SkillUsageResult tryUseSkill(PlayerCharacter character,
+                                         Map<Integer, SkillResponse> skillSlots,
+                                         Map<Integer, Integer> slotCooldowns) {
+        // 按槽位顺序（1-8）查找可用的攻击技能
+        for (int slot = 1; slot <= 8; slot++) {
+            // 检查该槽位是否有技能
+            if (!skillSlots.containsKey(slot)) {
+                continue;
+            }
+
+            // 检查冷却
+            if (slotCooldowns.get(slot) > 0) {
+                continue;
+            }
+
+            SkillResponse skillResponse = skillSlots.get(slot);
+
+            // 检查是否为攻击类技能
+            if (!CombatConstants.isAttackSkill(skillResponse.getFunctionType())) {
+                continue;
+            }
+
+            // 查询CharacterSkill获取技能等级
+            CharacterSkill charSkill = characterSkillMapper.selectById(skillResponse.getCharacterSkillId());
+            if (charSkill == null) {
+                continue;
+            }
+
+            // 检查灵力是否足够
+            Skill skill = skillMapper.selectById(charSkill.getSkillId());
+            if (skill == null || character.getSpiritualPower() < skill.getSpiritualCost()) {
+                continue;
+            }
+
+            // 扣除灵力
+            character.setSpiritualPower(character.getSpiritualPower() - skill.getSpiritualCost());
+
+            // 设置冷却
+            slotCooldowns.put(slot, CombatConstants.SKILL_COOLDOWN_TURNS);
+
+            // 返回使用的技能
+            SkillUsageResult result = new SkillUsageResult();
+            result.usedSkill = true;
+            result.skill = skillResponse;
+            result.charSkill = charSkill;
+            return result;
+        }
+
+        // 没有可用技能
+        return new SkillUsageResult();
+    }
+
+    /**
+     * 计算技能伤害
+     */
+    private int calculateSkillDamage(PlayerCharacter character, SkillResponse skillResponse, CharacterSkill charSkill) {
+        Skill skill = skillMapper.selectById(charSkill.getSkillId());
+        if (skill == null) {
+            return calculateCharacterAttack(character);
+        }
+
+        // 基础伤害 + 等级加成
+        int baseDamage = skill.getBaseDamage() != null ? skill.getBaseDamage() : 0;
+        if (skill.getDamageGrowthRate() != null && charSkill.getSkillLevel() > 1 && baseDamage > 0) {
+            int levelBonus = (int) (baseDamage * skill.getDamageGrowthRate().doubleValue() * (charSkill.getSkillLevel() - 1));
+            baseDamage += levelBonus;
+        }
+
+        // 应用技能倍率
+        int skillDamage = baseDamage;
+        if (skill.getSkillMultiplier() != null) {
+            skillDamage = (int) (baseDamage * skill.getSkillMultiplier().doubleValue());
+        }
+
+        // 叠加角色攻击力加成
+        int characterAttack = calculateCharacterAttack(character);
+        skillDamage += characterAttack;
+
+        // 添加随机波动 ±10%
+        double fluctuation = 0.9 + random.nextDouble() * 0.2;
+        return Math.max(1, (int) (skillDamage * fluctuation));
+    }
+
+    /**
+     * 技能使用结果内部类
+     */
+    private static class SkillUsageResult {
+        boolean usedSkill = false;
+        SkillResponse skill;
+        CharacterSkill charSkill;
     }
 
     /**
@@ -346,5 +514,7 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
         int criticalHits;
         int characterHpRemaining;
         List<String> combatLog;
+        List<String> skillsUsed;
+        Map<Integer, Integer> slotCooldowns;
     }
 }

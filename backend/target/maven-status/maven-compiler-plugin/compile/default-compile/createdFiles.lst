@@ -3,10 +3,12 @@ com\xiuxian\service\impl\CombatServiceImpl.class
 com\xiuxian\dto\response\ForgeResponse.class
 com\xiuxian\mapper\CharacterEquipmentMapper.class
 com\xiuxian\service\SectService.class
+com\xiuxian\config\PositionPromotionProperties$PositionRequirement.class
 com\xiuxian\entity\Skill.class
 com\xiuxian\service\SectMemberService.class
 com\xiuxian\dto\response\AllocatePointsResponse.class
 com\xiuxian\dto\response\DailyTaskSummaryResponse.class
+com\xiuxian\dto\response\PositionUpgradeInfo.class
 com\xiuxian\dto\request\JoinSectRequest.class
 com\xiuxian\mapper\ExplorationEventMapper.class
 com\xiuxian\service\CharacterService.class
@@ -30,6 +32,7 @@ com\xiuxian\XiuxianApplication.class
 com\xiuxian\controller\CharacterController.class
 com\xiuxian\dto\response\ExplorationResponse.class
 com\xiuxian\dto\response\SkillResponse.class
+com\xiuxian\controller\SectPositionController.class
 com\xiuxian\mapper\EquipmentRecipeMaterialMapper.class
 com\xiuxian\controller\GlobalExceptionHandler.class
 com\xiuxian\entity\CharacterInventory.class
@@ -39,6 +42,7 @@ com\xiuxian\controller\SkillController.class
 com\xiuxian\entity\SectShopItem.class
 com\xiuxian\dto\request\AlchemyRequest.class
 com\xiuxian\entity\PlayerCharacter.class
+com\xiuxian\config\PositionPromotionProperties.class
 com\xiuxian\entity\CharacterSectReputation.class
 com\xiuxian\entity\ForgeRecord.class
 com\xiuxian\mapper\MonsterMapper.class
@@ -46,6 +50,7 @@ com\xiuxian\service\ForgeService.class
 com\xiuxian\service\InventoryService.class
 com\xiuxian\dto\request\CultivationRequest.class
 com\xiuxian\controller\SectTaskController.class
+com\xiuxian\config\SectTaskProperties.class
 com\xiuxian\service\MonsterDropService.class
 com\xiuxian\config\AttributeProperties.class
 com\xiuxian\dto\response\EquipmentResponse.class
@@ -106,6 +111,7 @@ com\xiuxian\mapper\EquipmentMapper.class
 com\xiuxian\entity\PillRecipe.class
 com\xiuxian\service\MonsterService.class
 com\xiuxian\config\IdleCombatProperties.class
+com\xiuxian\dto\request\PromotePositionRequest.class
 com\xiuxian\dto\request\CombatStartRequest.class
 com\xiuxian\mapper\SectTaskTemplateMapper.class
 com\xiuxian\entity\ExplorationEvent.class

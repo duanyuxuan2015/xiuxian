@@ -6,10 +6,13 @@ D:\xiuxian\backend\src\main\java\com\xiuxian\entity\CharacterEquipment.java
 D:\xiuxian\backend\src\main\java\com\xiuxian\mapper\SectTaskProgressMapper.java
 D:\xiuxian\backend\src\main\java\com\xiuxian\entity\ExplorationArea.java
 D:\xiuxian\backend\src\main\java\com\xiuxian\service\impl\package-info.java
+D:\xiuxian\backend\src\main\java\com\xiuxian\config\SectTaskProperties.java
 D:\xiuxian\backend\src\main\java\com\xiuxian\common\exception\BusinessException.java
 D:\xiuxian\backend\src\main\java\com\xiuxian\mapper\AlchemyRecordMapper.java
 D:\xiuxian\backend\src\main\java\com\xiuxian\dto\request\SubmitTaskRequest.java
+D:\xiuxian\backend\src\main\java\com\xiuxian\controller\SectPositionController.java
 D:\xiuxian\backend\src\main\java\com\xiuxian\dto\response\SectTaskResponse.java
+D:\xiuxian\backend\src\main\java\com\xiuxian\dto\request\PromotePositionRequest.java
 D:\xiuxian\backend\src\main\java\com\xiuxian\mapper\ExplorationRecordMapper.java
 D:\xiuxian\backend\src\main\java\com\xiuxian\mapper\SkillMapper.java
 D:\xiuxian\backend\src\main\java\com\xiuxian\common\exception\ErrorCode.java
@@ -80,6 +83,7 @@ D:\xiuxian\backend\src\main\java\com\xiuxian\dto\response\SellItemResponse.java
 D:\xiuxian\backend\src\main\java\com\xiuxian\entity\package-info.java
 D:\xiuxian\backend\src\main\java\com\xiuxian\config\CorsConfig.java
 D:\xiuxian\backend\src\main\java\com\xiuxian\service\InventoryService.java
+D:\xiuxian\backend\src\main\java\com\xiuxian\dto\response\PositionUpgradeInfo.java
 D:\xiuxian\backend\src\main\java\com\xiuxian\service\impl\CombatServiceImpl.java
 D:\xiuxian\backend\src\main\java\com\xiuxian\controller\ForgeController.java
 D:\xiuxian\backend\src\main\java\com\xiuxian\dto\response\EquipmentRecipeResponse.java
@@ -101,6 +105,7 @@ D:\xiuxian\backend\src\main\java\com\xiuxian\mapper\CharacterInventoryMapper.jav
 D:\xiuxian\backend\src\main\java\com\xiuxian\service\CharacterService.java
 D:\xiuxian\backend\src\main\java\com\xiuxian\dto\response\DailyTaskSummaryResponse.java
 D:\xiuxian\backend\src\main\java\com\xiuxian\dto\response\TaskProgressResponse.java
+D:\xiuxian\backend\src\main\java\com\xiuxian\config\PositionPromotionProperties.java
 D:\xiuxian\backend\src\main\java\com\xiuxian\service\impl\SectMemberServiceImpl.java
 D:\xiuxian\backend\src\main\java\com\xiuxian\dto\response\MeditationResponse.java
 D:\xiuxian\backend\src\main\java\com\xiuxian\mapper\CombatRecordMapper.java
