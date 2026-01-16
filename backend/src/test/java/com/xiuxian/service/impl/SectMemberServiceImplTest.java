@@ -3,7 +3,9 @@ package com.xiuxian.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.xiuxian.common.exception.BusinessException;
 import com.xiuxian.dto.request.JoinSectRequest;
+import com.xiuxian.dto.request.PromotePositionRequest;
 import com.xiuxian.dto.request.SectShopBuyRequest;
+import com.xiuxian.dto.response.PositionUpgradeInfo;
 import com.xiuxian.dto.response.SectMemberResponse;
 import com.xiuxian.dto.response.SectResponse;
 import com.xiuxian.dto.response.SectShopItemResponse;
@@ -14,11 +16,14 @@ import com.xiuxian.entity.SectShopItem;
 import com.xiuxian.entity.Skill;
 import com.xiuxian.entity.Equipment;
 import com.xiuxian.entity.Pill;
+import com.xiuxian.mapper.CharacterSectReputationMapper;
 import com.xiuxian.mapper.SectMemberMapper;
 import com.xiuxian.mapper.SectShopItemMapper;
 import com.xiuxian.mapper.SkillMapper;
 import com.xiuxian.mapper.EquipmentMapper;
 import com.xiuxian.mapper.PillMapper;
+import com.xiuxian.config.PositionPromotionProperties;
+import com.xiuxian.entity.CharacterSectReputation;
 import com.xiuxian.service.CharacterService;
 import com.xiuxian.service.InventoryService;
 import com.xiuxian.service.SectService;
@@ -58,6 +63,10 @@ public class SectMemberServiceImplTest {
     private EquipmentMapper equipmentMapper;
     @Mock
     private PillMapper pillMapper;
+    @Mock
+    private PositionPromotionProperties promotionProperties;
+    @Mock
+    private CharacterSectReputationMapper reputationMapper;
 
     @InjectMocks
     private SectMemberServiceImpl sectMemberService;
@@ -818,5 +827,270 @@ public class SectMemberServiceImplTest {
         assertEquals("equipment", responses.get(1).getItemType());
         assertEquals(50, responses.get(1).getAttackBonus());
         assertEquals(10, responses.get(1).getDefenseBonus());
+    }
+
+    // ==================== 职位升级测试 ====================
+
+    @Test
+    void getPromotionInfo_DiscipleToInner_Success() {
+        character.setSpiritStones(2000L);
+        sectMember.setPosition("弟子");
+        sectMember.setContribution(600);
+
+        CharacterSectReputation reputation = new CharacterSectReputation();
+        reputation.setCharacterId(1L);
+        reputation.setSectId(1L);
+        reputation.setReputation(150);
+
+        PositionPromotionProperties.PositionRequirement requirement =
+                new PositionPromotionProperties.PositionRequirement();
+        requirement.setPositionLevel(1);
+        requirement.setRequiredReputation(100);
+        requirement.setContributionCost(500);
+        requirement.setSpiritStonesCost(1000);
+        requirement.setEnabled(true);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(sectMemberMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(sectMember);
+        when(reputationMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(reputation);
+        when(promotionProperties.getRequirementByLevel(1)).thenReturn(requirement);
+
+        PositionUpgradeInfo info = sectMemberService.getPromotionInfo(1L);
+
+        assertNotNull(info);
+        assertTrue(info.getAvailable());
+        assertTrue(info.getCanUpgrade());
+        assertEquals("弟子", info.getCurrentPosition());
+        assertEquals("内门弟子", info.getNextPosition());
+        assertEquals(150, info.getCurrentReputation());
+        assertEquals(100, info.getRequiredReputation());
+        assertEquals(600, info.getCurrentContribution());
+        assertEquals(500, info.getRequiredContribution());
+        assertEquals(2000L, info.getCurrentSpiritStones());
+        assertEquals(1000L, info.getRequiredSpiritStones());
+    }
+
+    @Test
+    void getPromotionInfo_ReputationNotEnough_CanUpgradeFalse() {
+        character.setSpiritStones(2000L);
+        sectMember.setPosition("弟子");
+        sectMember.setContribution(600);
+
+        CharacterSectReputation reputation = new CharacterSectReputation();
+        reputation.setCharacterId(1L);
+        reputation.setSectId(1L);
+        reputation.setReputation(50); // 声望不足
+
+        PositionPromotionProperties.PositionRequirement requirement =
+                new PositionPromotionProperties.PositionRequirement();
+        requirement.setPositionLevel(1);
+        requirement.setRequiredReputation(100);
+        requirement.setContributionCost(500);
+        requirement.setSpiritStonesCost(1000);
+        requirement.setEnabled(true);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(sectMemberMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(sectMember);
+        when(reputationMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(reputation);
+        when(promotionProperties.getRequirementByLevel(1)).thenReturn(requirement);
+
+        PositionUpgradeInfo info = sectMemberService.getPromotionInfo(1L);
+
+        assertNotNull(info);
+        assertTrue(info.getAvailable());
+        assertFalse(info.getCanUpgrade());
+        assertEquals(50, info.getCurrentReputation());
+        assertEquals(100, info.getRequiredReputation());
+    }
+
+    @Test
+    void getPromotionInfo_Elder_NotAvailable() {
+        sectMember.setPosition("长老");
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(sectMemberMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(sectMember);
+
+        PositionUpgradeInfo info = sectMemberService.getPromotionInfo(1L);
+
+        assertNotNull(info);
+        assertFalse(info.getAvailable());
+        assertEquals("长老", info.getCurrentPosition());
+        assertEquals("已达到最高可升级职位", info.getUnavailableReason());
+    }
+
+    @Test
+    void getPromotionInfo_NoSect_ThrowsException() {
+        when(characterService.getById(1L)).thenReturn(character);
+        when(sectMemberMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(null);
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> sectMemberService.getPromotionInfo(1L));
+        assertEquals(8004, exception.getCode());
+    }
+
+    @Test
+    void promotePosition_Success() {
+        character.setSpiritStones(5000L);
+        character.setCharacterId(1L);
+        sectMember.setPosition("弟子");
+        sectMember.setContribution(1000);
+
+        CharacterSectReputation reputation = new CharacterSectReputation();
+        reputation.setCharacterId(1L);
+        reputation.setSectId(1L);
+        reputation.setReputation(200);
+
+        PositionPromotionProperties.PositionRequirement requirement =
+                new PositionPromotionProperties.PositionRequirement();
+        requirement.setPositionLevel(1);
+        requirement.setRequiredReputation(100);
+        requirement.setContributionCost(500);
+        requirement.setSpiritStonesCost(1000);
+        requirement.setEnabled(true);
+
+        PromotePositionRequest request = new PromotePositionRequest();
+        request.setCharacterId(1L);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(sectMemberMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(sectMember);
+        when(reputationMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(reputation);
+        when(promotionProperties.getRequirementByLevel(1)).thenReturn(requirement);
+        when(sectMemberMapper.updateById(any(SectMember.class))).thenReturn(1);
+        when(characterService.updateById(any(PlayerCharacter.class))).thenReturn(true);
+
+        String result = sectMemberService.promotePosition(request);
+
+        assertNotNull(result);
+        assertTrue(result.contains("内门弟子"));
+        assertEquals(500, sectMember.getContribution());
+        assertEquals("内门弟子", sectMember.getPosition());
+        assertEquals(4000L, character.getSpiritStones());
+    }
+
+    @Test
+    void promotePosition_ReputationNotEnough_ThrowsException() {
+        character.setSpiritStones(5000L);
+        sectMember.setPosition("弟子");
+        sectMember.setContribution(1000);
+
+        CharacterSectReputation reputation = new CharacterSectReputation();
+        reputation.setCharacterId(1L);
+        reputation.setSectId(1L);
+        reputation.setReputation(50); // 声望不足
+
+        PositionPromotionProperties.PositionRequirement requirement =
+                new PositionPromotionProperties.PositionRequirement();
+        requirement.setPositionLevel(1);
+        requirement.setRequiredReputation(100);
+        requirement.setContributionCost(500);
+        requirement.setSpiritStonesCost(1000);
+        requirement.setEnabled(true);
+
+        PromotePositionRequest request = new PromotePositionRequest();
+        request.setCharacterId(1L);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(sectMemberMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(sectMember);
+        when(reputationMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(reputation);
+        when(promotionProperties.getRequirementByLevel(1)).thenReturn(requirement);
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> sectMemberService.promotePosition(request));
+        assertEquals(8022, exception.getCode());
+        assertTrue(exception.getMessage().contains("声望值不足"));
+    }
+
+    @Test
+    void promotePosition_ContributionNotEnough_ThrowsException() {
+        character.setSpiritStones(5000L);
+        sectMember.setPosition("弟子");
+        sectMember.setContribution(300); // 贡献值不足
+
+        CharacterSectReputation reputation = new CharacterSectReputation();
+        reputation.setCharacterId(1L);
+        reputation.setSectId(1L);
+        reputation.setReputation(200);
+
+        PositionPromotionProperties.PositionRequirement requirement =
+                new PositionPromotionProperties.PositionRequirement();
+        requirement.setPositionLevel(1);
+        requirement.setRequiredReputation(100);
+        requirement.setContributionCost(500);
+        requirement.setSpiritStonesCost(1000);
+        requirement.setEnabled(true);
+
+        PromotePositionRequest request = new PromotePositionRequest();
+        request.setCharacterId(1L);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(sectMemberMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(sectMember);
+        when(reputationMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(reputation);
+        when(promotionProperties.getRequirementByLevel(1)).thenReturn(requirement);
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> sectMemberService.promotePosition(request));
+        assertEquals(8023, exception.getCode());
+        assertTrue(exception.getMessage().contains("贡献值不足"));
+    }
+
+    @Test
+    void promotePosition_SpiritStonesNotEnough_ThrowsException() {
+        character.setSpiritStones(500L); // 灵石不足
+        sectMember.setPosition("弟子");
+        sectMember.setContribution(1000);
+
+        CharacterSectReputation reputation = new CharacterSectReputation();
+        reputation.setCharacterId(1L);
+        reputation.setSectId(1L);
+        reputation.setReputation(200);
+
+        PositionPromotionProperties.PositionRequirement requirement =
+                new PositionPromotionProperties.PositionRequirement();
+        requirement.setPositionLevel(1);
+        requirement.setRequiredReputation(100);
+        requirement.setContributionCost(500);
+        requirement.setSpiritStonesCost(1000);
+        requirement.setEnabled(true);
+
+        PromotePositionRequest request = new PromotePositionRequest();
+        request.setCharacterId(1L);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(sectMemberMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(sectMember);
+        when(reputationMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(reputation);
+        when(promotionProperties.getRequirementByLevel(1)).thenReturn(requirement);
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> sectMemberService.promotePosition(request));
+        assertEquals(8024, exception.getCode());
+        assertTrue(exception.getMessage().contains("灵石不足"));
+    }
+
+    @Test
+    void promotePosition_ElderCannotUpgrade_ThrowsException() {
+        sectMember.setPosition("长老");
+
+        PromotePositionRequest request = new PromotePositionRequest();
+        request.setCharacterId(1L);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(sectMemberMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(sectMember);
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> sectMemberService.promotePosition(request));
+        assertEquals(8020, exception.getCode());
+    }
+
+    @Test
+    void promotePosition_NoSect_ThrowsException() {
+        PromotePositionRequest request = new PromotePositionRequest();
+        request.setCharacterId(1L);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(sectMemberMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(null);
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> sectMemberService.promotePosition(request));
+        assertEquals(8004, exception.getCode());
     }
 }

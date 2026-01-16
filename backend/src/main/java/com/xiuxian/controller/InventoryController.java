@@ -8,10 +8,12 @@ import com.xiuxian.entity.CharacterInventory;
 import com.xiuxian.entity.Equipment;
 import com.xiuxian.entity.Material;
 import com.xiuxian.entity.Pill;
+import com.xiuxian.entity.Skill;
 import com.xiuxian.mapper.CharacterInventoryMapper;
 import com.xiuxian.mapper.EquipmentMapper;
 import com.xiuxian.mapper.MaterialMapper;
 import com.xiuxian.mapper.PillMapper;
+import com.xiuxian.mapper.SkillMapper;
 import com.xiuxian.service.CharacterService;
 import com.xiuxian.service.InventoryService;
 import org.slf4j.Logger;
@@ -42,19 +44,22 @@ public class InventoryController {
     private final EquipmentMapper equipmentMapper;
     private final MaterialMapper materialMapper;
     private final PillMapper pillMapper;
+    private final SkillMapper skillMapper;
 
     public InventoryController(CharacterService characterService,
                               InventoryService inventoryService,
                               CharacterInventoryMapper characterInventoryMapper,
                               EquipmentMapper equipmentMapper,
                               MaterialMapper materialMapper,
-                              PillMapper pillMapper) {
+                              PillMapper pillMapper,
+                              SkillMapper skillMapper) {
         this.characterService = characterService;
         this.inventoryService = inventoryService;
         this.characterInventoryMapper = characterInventoryMapper;
         this.equipmentMapper = equipmentMapper;
         this.materialMapper = materialMapper;
         this.pillMapper = pillMapper;
+        this.skillMapper = skillMapper;
     }
 
     /**
@@ -138,6 +143,40 @@ public class InventoryController {
                         response.setItemDetail(String.format("%s阶 | %s",
                                 pill.getPillTier(),
                                 pill.getQuality()));
+                    }
+                    break;
+
+                case "skill":
+                    Skill skill = skillMapper.selectById(itemId);
+                    if (skill != null) {
+                        response.setItemName(skill.getSkillName());
+                        StringBuilder detail = new StringBuilder();
+
+                        // 技能类型
+                        if (skill.getFunctionType() != null && !skill.getFunctionType().isEmpty()) {
+                            detail.append(skill.getFunctionType());
+                            // 添加元素类型
+                            if (skill.getElementType() != null && !skill.getElementType().isEmpty()) {
+                                detail.append("(").append(skill.getElementType()).append(")");
+                            }
+                        }
+
+                        // 伤害和灵力消耗
+                        if (skill.getBaseDamage() != null && skill.getBaseDamage() > 0) {
+                            if (detail.length() > 0) detail.append(" ");
+                            detail.append("伤害:").append(skill.getBaseDamage());
+                        }
+                        if (skill.getSpiritualCost() != null && skill.getSpiritualCost() > 0) {
+                            if (detail.length() > 0) detail.append(" ");
+                            detail.append("灵力:").append(skill.getSpiritualCost());
+                        }
+
+                        // 如果没有任何信息，使用默认描述
+                        if (detail.length() == 0) {
+                            detail.append("技能秘籍");
+                        }
+
+                        response.setItemDetail(detail.toString());
                     }
                     break;
 

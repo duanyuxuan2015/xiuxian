@@ -40,15 +40,13 @@ public class IdleCombatConfigTest {
     @Test
     void testIdleCombatPropertiesDefaultValue() {
         // 验证配置属性正确加载
-        // 默认值应该是30
         int maxBattles = idleCombatProperties.getMaxBattles();
 
         // 验证值大于0
         assertTrue(maxBattles > 0, "最大战斗轮数应该大于0");
 
-        // 验证默认值为30（可以通过application.yml修改）
-        // 如果测试环境没有配置文件，会使用默认值30
-        assertTrue(maxBattles == 30, "默认值应该是30，实际值: " + maxBattles);
+        // 验证配置值与application.yml中的设置一致（当前设置为5）
+        assertTrue(maxBattles == 5, "配置值应该是5，实际值: " + maxBattles);
 
         System.out.println("最大战斗轮数配置: " + maxBattles);
     }

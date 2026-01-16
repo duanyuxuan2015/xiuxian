@@ -18,6 +18,7 @@ public class SectMemberResponse {
     private String position;
     private Integer contribution;
     private Integer weeklyContribution;
+    private Integer reputation;  // 声望值
     private LocalDateTime joinedAt;
 
     public SectMemberResponse() {
@@ -99,6 +100,14 @@ public class SectMemberResponse {
 
     public void setWeeklyContribution(Integer weeklyContribution) {
         this.weeklyContribution = weeklyContribution;
+    }
+
+    public Integer getReputation() {
+        return reputation;
+    }
+
+    public void setReputation(Integer reputation) {
+        this.reputation = reputation;
     }
 
     public LocalDateTime getJoinedAt() {

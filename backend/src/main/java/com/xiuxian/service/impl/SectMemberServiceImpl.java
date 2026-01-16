@@ -3,11 +3,15 @@ package com.xiuxian.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.xiuxian.common.exception.BusinessException;
+import com.xiuxian.config.PositionPromotionProperties;
 import com.xiuxian.dto.request.JoinSectRequest;
+import com.xiuxian.dto.request.PromotePositionRequest;
 import com.xiuxian.dto.request.SectShopBuyRequest;
+import com.xiuxian.dto.response.PositionUpgradeInfo;
 import com.xiuxian.dto.response.SectMemberResponse;
 import com.xiuxian.dto.response.SectResponse;
 import com.xiuxian.dto.response.SectShopItemResponse;
+import com.xiuxian.entity.CharacterSectReputation;
 import com.xiuxian.entity.PlayerCharacter;
 import com.xiuxian.entity.Sect;
 import com.xiuxian.entity.SectMember;
@@ -15,6 +19,7 @@ import com.xiuxian.entity.SectShopItem;
 import com.xiuxian.entity.Skill;
 import com.xiuxian.entity.Equipment;
 import com.xiuxian.entity.Pill;
+import com.xiuxian.mapper.CharacterSectReputationMapper;
 import com.xiuxian.mapper.SectMemberMapper;
 import com.xiuxian.mapper.SectShopItemMapper;
 import com.xiuxian.mapper.SkillMapper;
@@ -50,6 +55,12 @@ public class SectMemberServiceImpl extends ServiceImpl<SectMemberMapper, SectMem
             "长老", 4,
             "掌门", 5);
 
+    private static final Map<Integer, String> NEXT_POSITIONS = Map.of(
+            1, "内门弟子",
+            2, "核心弟子",
+            3, "长老",
+            4, "掌门");
+
     private final CharacterService characterService;
     private final SectService sectService;
     private final InventoryService inventoryService;
@@ -57,6 +68,8 @@ public class SectMemberServiceImpl extends ServiceImpl<SectMemberMapper, SectMem
     private final SkillMapper skillMapper;
     private final EquipmentMapper equipmentMapper;
     private final PillMapper pillMapper;
+    private final PositionPromotionProperties promotionProperties;
+    private final CharacterSectReputationMapper reputationMapper;
 
     public SectMemberServiceImpl(@Lazy CharacterService characterService,
             SectService sectService,
@@ -64,7 +77,9 @@ public class SectMemberServiceImpl extends ServiceImpl<SectMemberMapper, SectMem
             SectShopItemMapper shopItemMapper,
             SkillMapper skillMapper,
             EquipmentMapper equipmentMapper,
-            PillMapper pillMapper) {
+            PillMapper pillMapper,
+            PositionPromotionProperties promotionProperties,
+            CharacterSectReputationMapper reputationMapper) {
         this.characterService = characterService;
         this.sectService = sectService;
         this.inventoryService = inventoryService;
@@ -72,6 +87,8 @@ public class SectMemberServiceImpl extends ServiceImpl<SectMemberMapper, SectMem
         this.skillMapper = skillMapper;
         this.equipmentMapper = equipmentMapper;
         this.pillMapper = pillMapper;
+        this.promotionProperties = promotionProperties;
+        this.reputationMapper = reputationMapper;
     }
 
     @Override
@@ -107,7 +124,13 @@ public class SectMemberServiceImpl extends ServiceImpl<SectMemberMapper, SectMem
         }
 
         Sect sect = sectService.getById(member.getSectId());
-        return SectMemberResponse.fromEntity(member, sect, character.getCharacterName());
+        SectMemberResponse response = SectMemberResponse.fromEntity(member, sect, character.getCharacterName());
+
+        // 获取声望值
+        int reputation = getCurrentReputation(characterId, member.getSectId());
+        response.setReputation(reputation);
+
+        return response;
     }
 
     @Override
@@ -351,5 +374,165 @@ public class SectMemberServiceImpl extends ServiceImpl<SectMemberMapper, SectMem
         LambdaQueryWrapper<SectMember> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(SectMember::getSectId, sectId);
         return (int) this.count(wrapper);
+    }
+
+    @Override
+    public PositionUpgradeInfo getPromotionInfo(Long characterId) {
+        // 1. 验证角色
+        PlayerCharacter character = characterService.getById(characterId);
+        if (character == null) {
+            throw new BusinessException(1003, "角色不存在");
+        }
+
+        // 2. 验证宗门成员
+        SectMember member = getByCharacterId(characterId);
+        if (member == null) {
+            throw new BusinessException(8004, "未加入任何宗门");
+        }
+
+        // 3. 获取当前职位等级
+        Integer currentLevel = POSITION_LEVELS.get(member.getPosition());
+        if (currentLevel == null) {
+            return PositionUpgradeInfo.notAvailable(member.getPosition(), "当前职位无法升级");
+        }
+
+        // 4. 检查是否已达到最高等级（长老）
+        if (currentLevel >= 4) {
+            return PositionUpgradeInfo.notAvailable(member.getPosition(), "已达到最高可升级职位");
+        }
+
+        // 5. 获取下一职位
+        String nextPosition = NEXT_POSITIONS.get(currentLevel);
+        if (nextPosition == null) {
+            return PositionUpgradeInfo.notAvailable(member.getPosition(), "没有可升级的职位");
+        }
+
+        // 6. 获取升级要求配置
+        PositionPromotionProperties.PositionRequirement requirement =
+                promotionProperties.getRequirementByLevel(currentLevel);
+        if (requirement == null || !requirement.isEnabled()) {
+            return PositionUpgradeInfo.notAvailable(member.getPosition(), "下一职位暂未开放升级");
+        }
+
+        // 7. 获取当前声望值
+        int currentReputation = getCurrentReputation(characterId, member.getSectId());
+
+        // 8. 获取角色当前灵石
+        long currentSpiritStones = character.getSpiritStones();
+
+        // 9. 判断是否满足升级条件
+        boolean canUpgrade = currentReputation >= requirement.getRequiredReputation()
+                && member.getContribution() >= requirement.getContributionCost()
+                && currentSpiritStones >= requirement.getSpiritStonesCost();
+
+        PositionUpgradeInfo info = new PositionUpgradeInfo();
+        info.setCurrentPosition(member.getPosition());
+        info.setNextPosition(nextPosition);
+        info.setCurrentReputation(currentReputation);
+        info.setRequiredReputation(requirement.getRequiredReputation());
+        info.setCurrentContribution(member.getContribution());
+        info.setRequiredContribution(requirement.getContributionCost());
+        info.setCurrentSpiritStones(currentSpiritStones);
+        info.setRequiredSpiritStones(requirement.getSpiritStonesCost());
+        info.setCanUpgrade(canUpgrade);
+        info.setAvailable(true);
+        return info;
+    }
+
+    @Override
+    @Transactional
+    public String promotePosition(PromotePositionRequest request) {
+        Long characterId = request.getCharacterId();
+
+        // 1. 验证角色
+        PlayerCharacter character = characterService.getById(characterId);
+        if (character == null) {
+            throw new BusinessException(1003, "角色不存在");
+        }
+
+        // 2. 验证宗门成员
+        SectMember member = getByCharacterId(characterId);
+        if (member == null) {
+            throw new BusinessException(8004, "未加入任何宗门");
+        }
+
+        // 3. 获取当前职位等级
+        Integer currentLevel = POSITION_LEVELS.get(member.getPosition());
+        if (currentLevel == null) {
+            throw new BusinessException(8020, "当前职位无法升级");
+        }
+
+        // 4. 检查是否已达到最高等级（长老）
+        if (currentLevel >= 4) {
+            throw new BusinessException(8020, "已达到最高可升级职位");
+        }
+
+        // 5. 获取下一职位
+        String nextPosition = NEXT_POSITIONS.get(currentLevel);
+        if (nextPosition == null) {
+            throw new BusinessException(8020, "没有可升级的职位");
+        }
+
+        // 6. 获取升级要求配置
+        PositionPromotionProperties.PositionRequirement requirement =
+                promotionProperties.getRequirementByLevel(currentLevel);
+        if (requirement == null || !requirement.isEnabled()) {
+            throw new BusinessException(8021, "下一职位暂未开放升级");
+        }
+
+        // 7. 获取当前声望值
+        int currentReputation = getCurrentReputation(characterId, member.getSectId());
+
+        // 8. 验证声望值
+        if (currentReputation < requirement.getRequiredReputation()) {
+            throw new BusinessException(8022, String.format("声望值不足，需要: %d，当前: %d",
+                    requirement.getRequiredReputation(), currentReputation));
+        }
+
+        // 9. 验证贡献值
+        if (member.getContribution() < requirement.getContributionCost()) {
+            throw new BusinessException(8023, String.format("贡献值不足，需要: %d，当前: %d",
+                    requirement.getContributionCost(), member.getContribution()));
+        }
+
+        // 10. 验证灵石
+        long currentSpiritStones = character.getSpiritStones();
+        if (currentSpiritStones < requirement.getSpiritStonesCost()) {
+            throw new BusinessException(8024, String.format("灵石不足，需要: %d，当前: %d",
+                    requirement.getSpiritStonesCost(), currentSpiritStones));
+        }
+
+        // 11. 扣除贡献值
+        member.setContribution(member.getContribution() - requirement.getContributionCost());
+        this.updateById(member);
+
+        // 12. 扣除灵石
+        character.setSpiritStones(currentSpiritStones - requirement.getSpiritStonesCost());
+        characterService.updateById(character);
+
+        // 13. 更新职位
+        member.setPosition(nextPosition);
+        this.updateById(member);
+
+        logger.info("职位升级成功: characterId={}, from={}, to={}, costReputation={}, costContribution={}, costStones={}",
+                characterId, member.getPosition(), nextPosition, requirement.getRequiredReputation(),
+                requirement.getContributionCost(), requirement.getSpiritStonesCost());
+
+        return String.format("恭喜！成功晋升为 %s！消耗贡献值 %d，灵石 %d",
+                nextPosition, requirement.getContributionCost(), requirement.getSpiritStonesCost());
+    }
+
+    /**
+     * 获取角色在指定宗门的声望值
+     * @param characterId 角色ID
+     * @param sectId 宗门ID
+     * @return 声望值，如果没有记录则返回0
+     */
+    private int getCurrentReputation(Long characterId, Long sectId) {
+        LambdaQueryWrapper<CharacterSectReputation> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(CharacterSectReputation::getCharacterId, characterId)
+                .eq(CharacterSectReputation::getSectId, sectId);
+        CharacterSectReputation reputation = reputationMapper.selectOne(wrapper);
+        return reputation != null ? reputation.getReputation() : 0;
     }
 }

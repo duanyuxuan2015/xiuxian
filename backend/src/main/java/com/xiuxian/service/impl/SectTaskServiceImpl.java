@@ -3,6 +3,7 @@ package com.xiuxian.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.xiuxian.common.exception.BusinessException;
+import com.xiuxian.config.SectTaskProperties;
 import com.xiuxian.dto.request.AcceptTaskRequest;
 import com.xiuxian.dto.request.SubmitTaskRequest;
 import com.xiuxian.dto.response.DailyTaskSummaryResponse;
@@ -40,8 +41,6 @@ public class SectTaskServiceImpl extends ServiceImpl<SectTaskProgressMapper, Sec
 
     private static final Logger logger = LoggerFactory.getLogger(SectTaskServiceImpl.class);
 
-    private static final int DAILY_ACCEPT_LIMIT = 3;
-
     private static final Map<String, Integer> POSITION_LEVELS = Map.of(
             "弟子", 1,
             "内门弟子", 2,
@@ -55,24 +54,28 @@ public class SectTaskServiceImpl extends ServiceImpl<SectTaskProgressMapper, Sec
             "collection", "收集任务",
             "crafting", "制作任务");
 
-    private static final Map<String, String> STATUS_DISPLAY = Map.of(
-            "accepted", "进行中",
-            "completed", "已完成",
-            "claimed", "已领奖");
+    private static final Map<String, String> STATUS_DISPLAY = Map.ofEntries(
+            Map.entry("accepted", "进行中"),
+            Map.entry("completed", "已完成"),
+            Map.entry("submitted", "已提交"),
+            Map.entry("claimed", "已领奖"));
 
     private final SectTaskTemplateMapper taskTemplateMapper;
     private final CharacterService characterService;
     private final SectMemberService sectMemberService;
     private final CharacterSectReputationMapper reputationMapper;
+    private final SectTaskProperties sectTaskProperties;
 
     public SectTaskServiceImpl(SectTaskTemplateMapper taskTemplateMapper,
                                 CharacterService characterService,
                                 @Lazy SectMemberService sectMemberService,
-                                CharacterSectReputationMapper reputationMapper) {
+                                CharacterSectReputationMapper reputationMapper,
+                                SectTaskProperties sectTaskProperties) {
         this.taskTemplateMapper = taskTemplateMapper;
         this.characterService = characterService;
         this.sectMemberService = sectMemberService;
         this.reputationMapper = reputationMapper;
+        this.sectTaskProperties = sectTaskProperties;
     }
 
     @Override
@@ -123,7 +126,7 @@ public class SectTaskServiceImpl extends ServiceImpl<SectTaskProgressMapper, Sec
             SectTaskResponse response = convertToResponse(template, memberPosition);
             // 检查是否可以接取（职位等级 + 每日限制）
             boolean canAccept = memberPosition >= template.getRequiredPosition()
-                    && todayAcceptCount < DAILY_ACCEPT_LIMIT;
+                    && todayAcceptCount < sectTaskProperties.getDailyAcceptLimit();
             response.setCanAccept(canAccept);
             responses.add(response);
         }
@@ -154,10 +157,10 @@ public class SectTaskServiceImpl extends ServiceImpl<SectTaskProgressMapper, Sec
         // 5. 获取可接取任务
         List<SectTaskResponse> availableTasks = getAvailableTasks(characterId);
 
-        // 6. 获取进行中任务
+        // 6. 获取进行中任务（包括已接取、已完成、已提交）
         LambdaQueryWrapper<SectTaskProgress> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(SectTaskProgress::getCharacterId, characterId)
-                .in(SectTaskProgress::getStatus, List.of("accepted", "completed"))
+                .in(SectTaskProgress::getStatus, List.of("accepted", "completed", "submitted"))
                 .orderByDesc(SectTaskProgress::getAcceptedAt);
         List<SectTaskProgress> inProgress = this.list(wrapper);
 
@@ -172,9 +175,9 @@ public class SectTaskServiceImpl extends ServiceImpl<SectTaskProgressMapper, Sec
 
         // 7. 构建汇总响应
         DailyTaskSummaryResponse summary = new DailyTaskSummaryResponse();
-        summary.setRemainingAccepts(Math.max(0, DAILY_ACCEPT_LIMIT - todayAcceptCount));
+        summary.setRemainingAccepts(Math.max(0, sectTaskProperties.getDailyAcceptLimit() - todayAcceptCount));
         summary.setCompletedCount(getTodayCompletedCount(characterId));
-        summary.setTotalDailyLimit(DAILY_ACCEPT_LIMIT);
+        summary.setTotalDailyLimit(sectTaskProperties.getDailyAcceptLimit());
         summary.setAvailableTasks(availableTasks);
         summary.setInProgressTasks(inProgressTasks);
 
@@ -218,7 +221,7 @@ public class SectTaskServiceImpl extends ServiceImpl<SectTaskProgressMapper, Sec
 
         // 6. 检查每日接取次数
         int todayAcceptCount = getTodayAcceptCount(characterId);
-        if (todayAcceptCount >= DAILY_ACCEPT_LIMIT) {
+        if (todayAcceptCount >= sectTaskProperties.getDailyAcceptLimit()) {
             throw new BusinessException(8013, "今日接取次数已达上限");
         }
 
@@ -276,11 +279,13 @@ public class SectTaskServiceImpl extends ServiceImpl<SectTaskProgressMapper, Sec
             throw new BusinessException(8010, "任务模板不存在");
         }
 
-        // 5. 如果任务已经是completed状态，直接返回成功
+        // 5. 如果任务已经是completed状态，更新为submitted状态（已提交待领奖）
         if ("completed".equals(progress.getStatus())) {
-            logger.info("任务已完成: characterId={}, taskId={}, progress={}/{}",
-                    characterId, progress.getTemplateId(),
-                    progress.getCurrentProgress(), template.getTargetCount());
+            progress.setStatus("submitted");
+            progress.setSubmittedAt(LocalDateTime.now());
+            this.updateById(progress);
+            logger.info("任务提交成功: characterId={}, taskId={}, 状态更新为submitted",
+                    characterId, progress.getTemplateId());
             return convertToProgressResponse(progress, template);
         }
 
@@ -296,9 +301,10 @@ public class SectTaskServiceImpl extends ServiceImpl<SectTaskProgressMapper, Sec
                             progress.getCurrentProgress(), template.getTargetCount()));
         }
 
-        // 8. 更新任务状态为已完成
-        progress.setStatus("completed");
+        // 8. 更新任务状态为已提交
+        progress.setStatus("submitted");
         progress.setCompletedAt(LocalDateTime.now());
+        progress.setSubmittedAt(LocalDateTime.now());
         this.updateById(progress);
 
         logger.info("提交宗门任务: characterId={}, taskId={}, progress={}/{}",
@@ -317,9 +323,9 @@ public class SectTaskServiceImpl extends ServiceImpl<SectTaskProgressMapper, Sec
             throw new BusinessException(8015, "任务进度不存在");
         }
 
-        // 2. 验证任务状态
-        if (!"completed".equals(progress.getStatus())) {
-            throw new BusinessException(8019, "任务尚未完成");
+        // 2. 验证任务状态（已完成或已提交都可以领奖）
+        if (!"completed".equals(progress.getStatus()) && !"submitted".equals(progress.getStatus())) {
+            throw new BusinessException(8019, "任务尚未完成或提交");
         }
 
         // 3. 查询任务模板

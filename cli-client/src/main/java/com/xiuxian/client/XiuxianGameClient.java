@@ -1756,6 +1756,7 @@ public class XiuxianGameClient {
             System.out.println("│  3. 加入宗门                         │");
             System.out.println("│  4. 查看宗门商店                     │");
             System.out.println("│  5. 宗门任务                         │");
+            System.out.println("│  6. 职位管理                         │");
             System.out.println("│  0. 返回主菜单                       │");
             System.out.println("└──────────────────────────────────────┘");
             System.out.print("\n请选择 (直接回车返回主菜单): ");
@@ -1768,6 +1769,7 @@ public class XiuxianGameClient {
                 case "3": joinSect(); break;
                 case "4": showSectShop(); break;
                 case "5": showSectTasks(); break;
+                case "6": showPositionManagement(); break;
                 case "0": return;
                 default: System.out.println("\n无效选择！");
             }
@@ -1828,6 +1830,7 @@ public class XiuxianGameClient {
                 System.out.printf("│ 职位: %-32s │\n", member.getPosition());
                 System.out.printf("│ 总贡献: %-30d │\n", member.getContribution());
                 System.out.printf("│ 本周贡献: %-28d │\n", member.getWeeklyContribution());
+                System.out.printf("│ 声望: %-32d │\n", member.getReputation());
                 System.out.printf("│ 加入时间: %-28s │\n", member.getJoinedAt());
                 System.out.println("└──────────────────────────────────────┘");
             } else {
@@ -1879,15 +1882,17 @@ public class XiuxianGameClient {
             List<SectShopItemResponse> items = gson.fromJson(array, listType);
 
             if (items != null && !items.isEmpty()) {
-                System.out.println("\n序号  物品名称              类型  价格  库存");
-                System.out.println("───────────────────────────────────────────────");
+                System.out.println("\n序号  物品名称              类型      价格    库存    所需职位");
+                System.out.println("─────────────────────────────────────────────────────────");
                 for (int i = 0; i < items.size(); i++) {
                     SectShopItemResponse item = items.get(i);
                     // 库存为null时显示为0
                     String stockDisplay = (item.getStock() == null) ? "0" : String.valueOf(item.getStock());
-                    System.out.printf("%-4d  %-20s  %-4s  %-6d  %-4s\n",
+                    // 获取职位名称
+                    String positionDisplay = getPositionName(item.getRequiredPosition());
+                    System.out.printf("%-4d  %-20s  %-8s  %-6d  %-6s  %-8s\n",
                             i + 1, item.getItemName(), item.getItemType(),
-                            item.getPrice(), stockDisplay);
+                            item.getPrice(), stockDisplay, positionDisplay);
                 }
 
                 // 显示后续操作菜单
@@ -2266,33 +2271,102 @@ public class XiuxianGameClient {
                 return;
             }
 
-            System.out.println("\n进行中任务:");
+            // 筛选已完成的任务
+            List<TaskProgressResponse> completedTasks = new ArrayList<>();
+            List<TaskProgressResponse> inProgressTasks = new ArrayList<>();
+
             for (TaskProgressResponse task : summary.getInProgressTasks()) {
-                if ("accepted".equals(task.getStatus()) || "completed".equals(task.getStatus())) {
+                if ("completed".equals(task.getStatus())) {
+                    completedTasks.add(task);
+                } else if ("accepted".equals(task.getStatus())) {
+                    inProgressTasks.add(task);
+                }
+            }
+
+            // 显示任务列表
+            if (!inProgressTasks.isEmpty()) {
+                System.out.println("\n进行中任务:");
+                for (TaskProgressResponse task : inProgressTasks) {
                     System.out.printf("[%d] %s - 进度: %s\n",
                             task.getProgressId(), task.getTaskName(), task.getProgressDisplay());
                 }
             }
 
-            System.out.print("\n请输入要提交的任务进度ID: ");
-            String progressIdStr = scanner.nextLine();
-            try {
-                Long progressId = Long.parseLong(progressIdStr);
-
-                JsonObject request = new JsonObject();
-                request.addProperty("characterId", currentCharacterId);
-                request.addProperty("progressId", progressId);
-
-                String submitResponse = ApiClient.post("/sect/tasks/submit", request);
-                JsonObject submitResult = gson.fromJson(submitResponse, JsonObject.class);
-
-                if (submitResult.has("code") && submitResult.get("code").getAsInt() == 200) {
-                    System.out.println("\n✅ 任务提交成功！可以领取奖励了");
-                } else {
-                    System.out.println("\n❌ " + submitResult.get("message").getAsString());
+            if (!completedTasks.isEmpty()) {
+                System.out.println("\n✨ 已完成任务（可提交）:");
+                for (TaskProgressResponse task : completedTasks) {
+                    System.out.printf("[%d] %s - 进度: %s\n",
+                            task.getProgressId(), task.getTaskName(), task.getProgressDisplay());
                 }
-            } catch (NumberFormatException e) {
-                System.out.println("\n❌ 无效的进度ID！");
+            }
+
+            if (completedTasks.isEmpty()) {
+                System.out.println("\n暂无可提交的任务");
+                pressEnterToContinue();
+                return;
+            }
+
+            System.out.print("\n请输入要提交的任务进度ID（直接回车提交所有已完成任务）: ");
+            String progressIdStr = scanner.nextLine().trim();
+
+            // 如果输入为空，自动提交所有已完成任务
+            if (progressIdStr.isEmpty()) {
+                System.out.println("\n开始自动提交所有已完成任务...\n");
+                int successCount = 0;
+                int failCount = 0;
+
+                for (TaskProgressResponse task : completedTasks) {
+                    try {
+                        JsonObject request = new JsonObject();
+                        request.addProperty("characterId", currentCharacterId);
+                        request.addProperty("progressId", task.getProgressId());
+
+                        String submitResponse = ApiClient.post("/sect/tasks/submit", request);
+                        JsonObject submitResult = gson.fromJson(submitResponse, JsonObject.class);
+
+                        if (submitResult.has("code") && submitResult.get("code").getAsInt() == 200) {
+                            System.out.printf("✅ [%d] %s - 提交成功\n", task.getProgressId(), task.getTaskName());
+                            successCount++;
+                        } else {
+                            String errorMsg = submitResult.has("message") ?
+                                    submitResult.get("message").getAsString() : "未知错误";
+                            System.out.printf("❌ [%d] %s - 提交失败: %s\n",
+                                    task.getProgressId(), task.getTaskName(), errorMsg);
+                            failCount++;
+                        }
+                    } catch (Exception e) {
+                        System.out.printf("❌ [%d] %s - 提交异常: %s\n",
+                                task.getProgressId(), task.getTaskName(), e.getMessage());
+                        failCount++;
+                    }
+                }
+
+                System.out.println("\n" + "─".repeat(40));
+                System.out.printf("\n提交完成！成功: %d，失败: %d\n", successCount, failCount);
+
+                if (successCount > 0) {
+                    System.out.println("\n💡 提示：可以前往「领取奖励」菜单领取任务奖励");
+                }
+            } else {
+                // 手动提交单个任务
+                try {
+                    Long progressId = Long.parseLong(progressIdStr);
+
+                    JsonObject request = new JsonObject();
+                    request.addProperty("characterId", currentCharacterId);
+                    request.addProperty("progressId", progressId);
+
+                    String submitResponse = ApiClient.post("/sect/tasks/submit", request);
+                    JsonObject submitResult = gson.fromJson(submitResponse, JsonObject.class);
+
+                    if (submitResult.has("code") && submitResult.get("code").getAsInt() == 200) {
+                        System.out.println("\n✅ 任务提交成功！可以领取奖励了");
+                    } else {
+                        System.out.println("\n❌ " + submitResult.get("message").getAsString());
+                    }
+                } catch (NumberFormatException e) {
+                    System.out.println("\n❌ 无效的进度ID！");
+                }
             }
         } else {
             System.out.println("\n❌ " + result.get("message").getAsString());
@@ -2320,16 +2394,17 @@ public class XiuxianGameClient {
                 return;
             }
 
-            // 筛选已完成的任务
+            // 筛选已提交待领奖的任务
             List<TaskProgressResponse> completedTasks = new ArrayList<>();
             for (TaskProgressResponse task : summary.getInProgressTasks()) {
-                if ("completed".equals(task.getStatus())) {
+                // 只显示已提交但未领奖的任务
+                if ("submitted".equals(task.getStatus())) {
                     completedTasks.add(task);
                 }
             }
 
             if (completedTasks.isEmpty()) {
-                System.out.println("\n暂无可领取奖励的任务");
+                System.out.println("\n暂无可领取奖励的任务（需要先提交任务）");
                 pressEnterToContinue();
                 return;
             }
@@ -2341,30 +2416,270 @@ public class XiuxianGameClient {
                         task.getContributionReward(), task.getReputationReward());
             }
 
-            System.out.print("\n请输入要领取奖励的任务进度ID: ");
-            String progressIdStr = scanner.nextLine();
-            try {
-                Long progressId = Long.parseLong(progressIdStr);
+            System.out.print("\n请输入要领取奖励的任务进度ID（直接回车领取所有可领取奖励）: ");
+            String progressIdStr = scanner.nextLine().trim();
 
-                String claimResponse = ApiClient.post("/sect/tasks/claim/" + progressId, new JsonObject());
-                JsonObject claimResult = gson.fromJson(claimResponse, JsonObject.class);
+            // 如果输入为空，自动领取所有可领取奖励
+            if (progressIdStr.isEmpty()) {
+                System.out.println("\n开始自动领取所有可领取奖励...\n");
+                int successCount = 0;
+                int failCount = 0;
+                int totalContribution = 0;
+                int totalReputation = 0;
 
-                if (claimResult.has("code") && claimResult.get("code").getAsInt() == 200) {
-                    // 安全地获取data字段
-                    if (claimResult.has("data") && !claimResult.get("data").isJsonNull()) {
-                        System.out.println("\n✅ " + claimResult.get("data").getAsString());
-                    } else {
-                        System.out.println("\n✅ 奖励领取成功！");
+                for (TaskProgressResponse task : completedTasks) {
+                    try {
+                        String claimResponse = ApiClient.post("/sect/tasks/claim/" + task.getProgressId(), new com.google.gson.JsonObject());
+                        JsonObject claimResult = gson.fromJson(claimResponse, com.google.gson.JsonObject.class);
+
+                        if (claimResult.has("code") && claimResult.get("code").getAsInt() == 200) {
+                            int contribution = task.getContributionReward();
+                            int reputation = task.getReputationReward();
+                            totalContribution += contribution;
+                            totalReputation += reputation;
+
+                            System.out.printf("✅ [%d] %s - 获得 %d贡献 + %d声望\n",
+                                    task.getProgressId(), task.getTaskName(), contribution, reputation);
+                            successCount++;
+                        } else {
+                            String errorMsg = claimResult.has("message") ?
+                                    claimResult.get("message").getAsString() : "未知错误";
+                            System.out.printf("❌ [%d] %s - 领取失败: %s\n",
+                                    task.getProgressId(), task.getTaskName(), errorMsg);
+                            failCount++;
+                        }
+                    } catch (Exception e) {
+                        System.out.printf("❌ [%d] %s - 领取异常: %s\n",
+                                task.getProgressId(), task.getTaskName(), e.getMessage());
+                        failCount++;
                     }
-                } else {
-                    System.out.println("\n❌ " + claimResult.get("message").getAsString());
                 }
-            } catch (NumberFormatException e) {
-                System.out.println("\n❌ 无效的进度ID！");
+
+                System.out.println("\n" + "─".repeat(40));
+                System.out.printf("\n领取完成！成功: %d，失败: %d\n", successCount, failCount);
+                if (successCount > 0) {
+                    System.out.printf("\n📊 总计获得: %d贡献值，%d声望\n", totalContribution, totalReputation);
+                    System.out.println("\n💡 提示：可以使用「我的宗门」菜单查看新的声望和贡献值");
+                }
+            } else {
+                // 手动领取单个任务奖励
+                try {
+                    Long progressId = Long.parseLong(progressIdStr);
+
+                    String claimResponse = ApiClient.post("/sect/tasks/claim/" + progressId, new com.google.gson.JsonObject());
+                    JsonObject claimResult = gson.fromJson(claimResponse, com.google.gson.JsonObject.class);
+
+                    if (claimResult.has("code") && claimResult.get("code").getAsInt() == 200) {
+                        // 安全地获取data字段
+                        if (claimResult.has("data") && !claimResult.get("data").isJsonNull()) {
+                            System.out.println("\n✅ " + claimResult.get("data").getAsString());
+                        } else {
+                            System.out.println("\n✅ 奖励领取成功！");
+                        }
+                    } else {
+                        System.out.println("\n❌ " + claimResult.get("message").getAsString());
+                    }
+                } catch (NumberFormatException e) {
+                    System.out.println("\n❌ 无效的进度ID！");
+                }
             }
         } else {
             System.out.println("\n❌ " + result.get("message").getAsString());
         }
+
+        pressEnterToContinue();
+    }
+
+    /**
+     * 职位管理菜单
+     */
+    private static void showPositionManagement() throws IOException, InterruptedException {
+        while (true) {
+            System.out.println("\n┌──────────────────────────────────────┐");
+            System.out.println("│              职 位 管 理              │");
+            System.out.println("├──────────────────────────────────────┤");
+            System.out.println("│  1. 查看职位信息                     │");
+            System.out.println("│  2. 申请职位升级                     │");
+            System.out.println("│  3. 查看所有职位                     │");
+            System.out.println("│  0. 返回宗门菜单                     │");
+            System.out.println("└──────────────────────────────────────┘");
+            System.out.print("\n请选择: ");
+
+            String choice = readMenuChoice();
+
+            switch (choice) {
+                case "1": showPositionInfo(); break;
+                case "2": applyForPromotion(); break;
+                case "3": showAllPositions(); break;
+                case "0": return;
+                default: System.out.println("\n无效选择！");
+            }
+        }
+    }
+
+    /**
+     * 显示职位信息
+     */
+    private static void showPositionInfo() throws IOException, InterruptedException {
+        System.out.println("\n--- 职位升级信息 ---");
+
+        com.xiuxian.client.model.PositionUpgradeInfo info =
+                ApiClient.getPositionUpgradeInfo(currentCharacterId);
+
+        if (info == null) {
+            System.out.println("\n❌ 无法获取职位信息");
+            pressEnterToContinue();
+            return;
+        }
+
+        if (!info.getAvailable()) {
+            System.out.printf("\n当前职位: %s\n", info.getCurrentPosition());
+            System.out.printf("\n%s\n", info.getUnavailableReason());
+            pressEnterToContinue();
+            return;
+        }
+
+        System.out.println("\n┌──────────────────────────────────────┐");
+        System.out.printf("│          职 位 升 级 信 息          │\n");
+        System.out.println("├──────────────────────────────────────┤");
+        System.out.printf("│ 当前职位: %-26s │\n", info.getCurrentPosition());
+        System.out.printf("│ 下一职位: %-26s │\n", info.getNextPosition());
+        System.out.println("├──────────────────────────────────────┤");
+        System.out.println("│ 升级要求:                            │");
+        System.out.println("├──────────────────────────────────────┤");
+
+        // 显示声望值
+        String reputationStatus = info.getCurrentReputation() >= info.getRequiredReputation() ? "✅" : "❌";
+        System.out.printf("│   %s 声望值: %4d / %-4d              │\n",
+                reputationStatus, info.getCurrentReputation(), info.getRequiredReputation());
+
+        // 显示贡献值
+        String contributionStatus = info.getCurrentContribution() >= info.getRequiredContribution() ? "✅" : "❌";
+        System.out.printf("│   %s 贡献值: %4d / %-4d              │\n",
+                contributionStatus, info.getCurrentContribution(), info.getRequiredContribution());
+
+        // 显示灵石
+        String stonesStatus = info.getCurrentSpiritStones() >= info.getRequiredSpiritStones() ? "✅" : "❌";
+        System.out.printf("│   %s 灵石:   %4d / %-4d              │\n",
+                stonesStatus, info.getCurrentSpiritStones(), info.getRequiredSpiritStones());
+
+        System.out.println("├──────────────────────────────────────┤");
+
+        if (info.getCanUpgrade()) {
+            System.out.println("│ 状态: ✅ 满足升级条件               │");
+        } else {
+            System.out.println("│ 状态: ❌ 不满足升级条件             │");
+        }
+
+        System.out.println("└──────────────────────────────────────┘");
+
+        pressEnterToContinue();
+    }
+
+    /**
+     * 申请职位升级
+     */
+    private static void applyForPromotion() throws IOException, InterruptedException {
+        System.out.println("\n--- 申请职位升级 ---");
+
+        // 先获取职位信息确认
+        com.xiuxian.client.model.PositionUpgradeInfo info =
+                ApiClient.getPositionUpgradeInfo(currentCharacterId);
+
+        if (info == null) {
+            System.out.println("\n❌ 无法获取职位信息");
+            pressEnterToContinue();
+            return;
+        }
+
+        if (!info.getAvailable()) {
+            System.out.printf("\n当前职位: %s\n", info.getCurrentPosition());
+            System.out.println("\n" + info.getUnavailableReason());
+            pressEnterToContinue();
+            return;
+        }
+
+        if (!info.getCanUpgrade()) {
+            System.out.println("\n❌ 不满足升级条件：");
+            if (info.getCurrentReputation() < info.getRequiredReputation()) {
+                System.out.printf("   声望值不足 (需要 %d，当前 %d)\n",
+                        info.getRequiredReputation(), info.getCurrentReputation());
+            }
+            if (info.getCurrentContribution() < info.getRequiredContribution()) {
+                System.out.printf("   贡献值不足 (需要 %d，当前 %d)\n",
+                        info.getRequiredContribution(), info.getCurrentContribution());
+            }
+            if (info.getCurrentSpiritStones() < info.getRequiredSpiritStones()) {
+                System.out.printf("   灵石不足 (需要 %d，当前 %d)\n",
+                        info.getRequiredSpiritStones(), info.getCurrentSpiritStones());
+            }
+            pressEnterToContinue();
+            return;
+        }
+
+        System.out.printf("\n当前职位: %s\n", info.getCurrentPosition());
+        System.out.printf("目标职位: %s\n", info.getNextPosition());
+        System.out.printf("\n升级消耗:\n");
+        System.out.printf("  贡献值: %d\n", info.getRequiredContribution());
+        System.out.printf("  灵石: %d\n", info.getRequiredSpiritStones());
+        System.out.print("\n确认申请升级？(y/n): ");
+
+        String confirm = scanner.nextLine().trim().toLowerCase();
+        if (!"y".equals(confirm) && !"yes".equals(confirm)) {
+            System.out.println("\n已取消升级申请");
+            pressEnterToContinue();
+            return;
+        }
+
+        try {
+            String result = ApiClient.promotePosition(currentCharacterId);
+
+            if (result != null) {
+                System.out.println("\n✅ " + result);
+            } else {
+                System.out.println("\n❌ 升级申请失败：服务器未返回响应");
+            }
+        } catch (Exception e) {
+            System.out.println("\n❌ 升级申请失败：" + e.getMessage());
+        }
+
+        pressEnterToContinue();
+    }
+
+    /**
+     * 显示所有职位信息
+     */
+    private static void showAllPositions() throws IOException, InterruptedException {
+        System.out.println("\n┌──────────────────────────────────────────────────────────┐");
+        System.out.println("│                    宗门职位体系                          │");
+        System.out.println("├──────────────────────────────────────────────────────────┤");
+        System.out.println("│ 职位等级       声望要求    贡献消耗    灵石消耗          │");
+        System.out.println("├──────────────────────────────────────────────────────────┤");
+        System.out.println("│ 【1】弟子                                              │");
+        System.out.println("│   → 初始职位，加入宗门即可获得                            │");
+        System.out.println("├──────────────────────────────────────────────────────────┤");
+        System.out.println("│ 【2】内门弟子                                          │");
+        System.out.println("│   声望: 100    贡献: 500     灵石: 1,000                │");
+        System.out.println("│   → 解锁更多宗门商店物品                                 │");
+        System.out.println("├──────────────────────────────────────────────────────────┤");
+        System.out.println("│ 【3】核心弟子                                          │");
+        System.out.println("│   声望: 300    贡献: 1,500   灵石: 3,000                │");
+        System.out.println("│   → 可接取更高难度的宗门任务                              │");
+        System.out.println("├──────────────────────────────────────────────────────────┤");
+        System.out.println("│ 【4】长老                                              │");
+        System.out.println("│   声望: 800    贡献: 5,000   灵石: 10,000               │");
+        System.out.println("│   → 可管理宗门事务，享受最高待遇                          │");
+        System.out.println("├──────────────────────────────────────────────────────────┤");
+        System.out.println("│ 【5】掌门                                              │");
+        System.out.println("│   → 需通过宗门战/竞选获得                                 │");
+        System.out.println("└──────────────────────────────────────────────────────────┘");
+
+        System.out.println("\n💡 职位说明:");
+        System.out.println("  • 职位越高，宗门商店可购买的物品越丰富");
+        System.out.println("  • 职位越高，可接取的宗门任务奖励越丰厚");
+        System.out.println("  • 升级需要同时满足声望、贡献值和灵石要求");
+        System.out.println("  • 贡献值通过完成宗门任务获得");
+        System.out.println("  • 声望通过完成宗门任务奖励获得");
 
         pressEnterToContinue();
     }
@@ -3157,25 +3472,42 @@ public class XiuxianGameClient {
                     for (int i = 0; i < array.size(); i++) {
                         JsonObject item = array.get(i).getAsJsonObject();
                         Long id = item.has("inventoryId") ? item.get("inventoryId").getAsLong() : 0L;
-                        String name = item.has("itemName") ? item.get("itemName").getAsString() : "未知";
                         String type = item.has("itemType") ? item.get("itemType").getAsString() : "";
                         Integer quantity = item.has("quantity") ? item.get("quantity").getAsInt() : 0;
 
-                        if (showEquipmentDetail && "equipment".equals(type)) {
+                        // 获取物品名称，优先级：itemName > skillName > equipmentName > 物品类型
+                        String name = item.has("itemName") && !item.get("itemName").getAsString().isEmpty() ?
+                                     item.get("itemName").getAsString() :
+                                     "skill".equals(type) && item.has("skillName") ?
+                                     item.get("skillName").getAsString() :
+                                     "equipment".equals(type) && item.has("equipmentName") ?
+                                     item.get("equipmentName").getAsString() :
+                                     "pill".equals(type) && item.has("pillName") ?
+                                     item.get("pillName").getAsString() :
+                                     "material".equals(type) && item.has("materialName") ?
+                                     item.get("materialName").getAsString() :
+                                     item.has("refItemName") ? item.get("refItemName").getAsString() :
+                                     "未知物品";
+
+                        String detail;
+                        if ("equipment".equals(type)) {
                             // 装备类型，显示详细属性
-                            String detail = formatEquipmentDetail(item);
+                            detail = formatEquipmentDetail(item);
+                        } else if ("skill".equals(type)) {
+                            // 技能类型，显示技能详细信息
+                            detail = formatSkillDetail(item);
+                        } else {
+                            // 其他类型，显示简单信息
+                            detail = item.has("itemDetail") ? item.get("itemDetail").getAsString() :
+                                   item.has("description") ? item.get("description").getAsString() : type;
+                        }
+
+                        if (showEquipmentDetail) {
                             System.out.printf("│ %2d │ %-16s │ %-64s │ %4d │%n",
                                     (i + 1), name, detail, quantity);
                         } else {
-                            // 非装备类型，显示简单信息
-                            String detail = item.has("itemDetail") ? item.get("itemDetail").getAsString() : "";
-                            if (showEquipmentDetail) {
-                                System.out.printf("│ %2d │ %-16s │ %-64s │ %4d │%n",
-                                        (i + 1), name, detail, quantity);
-                            } else {
-                                System.out.printf("%-4d  %-20s  %-20s  %-6d\n",
-                                        (i + 1), name, detail, quantity);
-                            }
+                            System.out.printf("%-4d  %-20s  %-20s  %-6d\n",
+                                    (i + 1), name, detail, quantity);
                         }
                     }
 
@@ -3290,6 +3622,25 @@ public class XiuxianGameClient {
             return "0";  // 空输入视为返回上级
         }
         return choice;
+    }
+
+    /**
+     * 根据职位等级获取职位名称
+     * @param level 职位等级 (1-5)
+     * @return 职位名称
+     */
+    private static String getPositionName(Integer level) {
+        if (level == null) {
+            return "不限";
+        }
+        switch (level) {
+            case 1: return "弟子";
+            case 2: return "内门弟子";
+            case 3: return "核心弟子";
+            case 4: return "长老";
+            case 5: return "掌门";
+            default: return "未知";
+        }
     }
 
     /**
@@ -3711,6 +4062,55 @@ public class XiuxianGameClient {
         } else {
             // 旧格式：显示原始 itemDetail
             sb.append(item.has("itemDetail") ? item.get("itemDetail").getAsString() : "");
+        }
+
+        return sb.toString();
+    }
+
+    /**
+     * 格式化技能物品详细信息
+     */
+    private static String formatSkillDetail(JsonObject item) {
+        StringBuilder sb = new StringBuilder();
+
+        // 技能名称（如果有）
+        String skillName = item.has("skillName") ? item.get("skillName").getAsString() : "";
+
+        // 技能类型
+        String skillType = item.has("skillType") ? item.get("skillType").getAsString() : "";
+
+        // 基础伤害
+        int baseDamage = item.has("baseDamage") && !item.get("baseDamage").isJsonNull() ?
+                       item.get("baseDamage").getAsInt() : 0;
+
+        // 灵力消耗
+        int spiritualCost = item.has("spiritualCost") && !item.get("spiritualCost").isJsonNull() ?
+                          item.get("spiritualCost").getAsInt() : 0;
+
+        // 元素类型
+        String element = item.has("elementType") ? item.get("elementType").getAsString() : "";
+
+        // 构建技能描述
+        if (!skillType.isEmpty()) {
+            sb.append(skillType);
+            if (!element.isEmpty()) {
+                sb.append("(").append(element).append(")");
+            }
+        }
+
+        if (baseDamage > 0) {
+            if (sb.length() > 0) sb.append(" ");
+            sb.append("伤害:").append(baseDamage);
+        }
+
+        if (spiritualCost > 0) {
+            if (sb.length() > 0) sb.append(" ");
+            sb.append("灵力:").append(spiritualCost);
+        }
+
+        // 如果没有任何信息，返回默认描述
+        if (sb.length() == 0) {
+            return "技能秘籍";
         }
 
         return sb.toString();

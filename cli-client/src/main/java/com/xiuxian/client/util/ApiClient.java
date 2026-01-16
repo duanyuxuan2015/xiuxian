@@ -233,4 +233,47 @@ public class ApiClient {
     public static Gson getGson() {
         return gson;
     }
+
+    // ==================== 宗门职位升级相关 API ====================
+
+    /**
+     * 获取职位升级信息
+     * @param characterId 角色ID
+     * @return 职位升级信息
+     */
+    public static com.xiuxian.client.model.PositionUpgradeInfo getPositionUpgradeInfo(Long characterId)
+            throws IOException, InterruptedException {
+        String response = get("/sect/position/upgrade-info/" + characterId);
+        return parseResponse(response, com.xiuxian.client.model.PositionUpgradeInfo.class);
+    }
+
+    /**
+     * 申请职位升级
+     * @param characterId 角色ID
+     * @return 升级结果消息
+     */
+    public static String promotePosition(Long characterId) throws IOException, InterruptedException {
+        com.google.gson.JsonObject requestBody = new com.google.gson.JsonObject();
+        requestBody.addProperty("characterId", characterId);
+
+        String response = post("/sect/position/promote", requestBody);
+
+        if (response != null) {
+            com.google.gson.JsonObject jsonObject = gson.fromJson(response, com.google.gson.JsonObject.class);
+            if (jsonObject.has("code") && jsonObject.get("code").getAsInt() == 200) {
+                // 成功返回
+                if (jsonObject.has("data") && !jsonObject.get("data").isJsonNull()) {
+                    return jsonObject.get("data").getAsString();
+                } else {
+                    // data为null时也返回成功消息
+                    return "职位升级成功！";
+                }
+            } else {
+                // 返回错误信息
+                String message = jsonObject.has("message") ? jsonObject.get("message").getAsString() : "未知错误";
+                throw new RuntimeException(message);
+            }
+        }
+        return null;
+    }
 }

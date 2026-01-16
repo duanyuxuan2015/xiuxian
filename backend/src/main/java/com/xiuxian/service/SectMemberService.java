@@ -2,7 +2,9 @@ package com.xiuxian.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.xiuxian.dto.request.JoinSectRequest;
+import com.xiuxian.dto.request.PromotePositionRequest;
 import com.xiuxian.dto.request.SectShopBuyRequest;
+import com.xiuxian.dto.response.PositionUpgradeInfo;
 import com.xiuxian.dto.response.SectMemberResponse;
 import com.xiuxian.dto.response.SectResponse;
 import com.xiuxian.dto.response.SectShopItemResponse;
@@ -77,4 +79,18 @@ public interface SectMemberService extends IService<SectMember> {
      * @return 成员信息，未加入宗门则返回null
      */
     SectMember getByCharacterId(Long characterId);
+
+    /**
+     * 获取职位升级信息
+     * @param characterId 角色ID
+     * @return 升级信息
+     */
+    PositionUpgradeInfo getPromotionInfo(Long characterId);
+
+    /**
+     * 申请职位升级
+     * @param request 升级请求
+     * @return 升级结果消息
+     */
+    String promotePosition(PromotePositionRequest request);
 }

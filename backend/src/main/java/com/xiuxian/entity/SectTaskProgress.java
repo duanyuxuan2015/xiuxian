@@ -27,6 +27,8 @@ public class SectTaskProgress {
 
     private LocalDateTime completedAt;
 
+    private LocalDateTime submittedAt;
+
     private LocalDateTime claimedAt;
 
     public SectTaskProgress() {
@@ -86,6 +88,14 @@ public class SectTaskProgress {
 
     public void setCompletedAt(LocalDateTime completedAt) {
         this.completedAt = completedAt;
+    }
+
+    public LocalDateTime getSubmittedAt() {
+        return submittedAt;
+    }
+
+    public void setSubmittedAt(LocalDateTime submittedAt) {
+        this.submittedAt = submittedAt;
     }
 
     public LocalDateTime getClaimedAt() {

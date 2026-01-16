@@ -2,6 +2,7 @@ package com.xiuxian.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.xiuxian.common.exception.BusinessException;
+import com.xiuxian.config.SectTaskProperties;
 import com.xiuxian.dto.request.AcceptTaskRequest;
 import com.xiuxian.dto.request.SubmitTaskRequest;
 import com.xiuxian.dto.response.DailyTaskSummaryResponse;
@@ -33,6 +34,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.lenient;
 
 /**
  * SectTaskService 单元测试
@@ -52,6 +54,9 @@ class SectTaskServiceImplTest {
     @Mock
     private CharacterSectReputationMapper reputationMapper;
 
+    @Mock
+    private SectTaskProperties sectTaskProperties;
+
     // 使用 @Spy 来部分模拟 service，这样可以 mock 继承的方法
     @Spy
     @InjectMocks
@@ -65,6 +70,9 @@ class SectTaskServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        // 配置 SectTaskProperties mock 返回默认值（使用 lenient 避免不必要的 stubbing 警告）
+        lenient().when(sectTaskProperties.getDailyAcceptLimit()).thenReturn(3);
+
         // 创建测试角色
         character = new PlayerCharacter();
         character.setCharacterId(1L);
@@ -374,8 +382,8 @@ class SectTaskServiceImplTest {
 
         // Then
         assertNotNull(response);
-        assertEquals("completed", response.getStatus());
-        assertEquals("已完成", response.getStatusDisplay());
+        assertEquals("submitted", response.getStatus());
+        assertEquals("已提交", response.getStatusDisplay());
         assertEquals(5, response.getCurrentProgress());
         verify(sectTaskService).updateById(any(SectTaskProgress.class));
     }
@@ -393,15 +401,16 @@ class SectTaskServiceImplTest {
         when(characterService.getById(1L)).thenReturn(character);
         doReturn(progress).when(sectTaskService).getById(1L);
         when(taskTemplateMapper.selectById(1L)).thenReturn(combatTask);
+        doReturn(true).when(sectTaskService).updateById(any(SectTaskProgress.class));
 
         // When
         TaskProgressResponse response = sectTaskService.submitTask(request);
 
         // Then
         assertNotNull(response);
-        assertEquals("completed", response.getStatus());
-        // 不应该再次调用updateById
-        verify(sectTaskService, never()).updateById(any(SectTaskProgress.class));
+        assertEquals("submitted", response.getStatus());
+        // 应该调用updateById来更新状态为submitted
+        verify(sectTaskService).updateById(any(SectTaskProgress.class));
     }
 
     @Test
@@ -672,5 +681,189 @@ class SectTaskServiceImplTest {
 
         // Then - 只验证方法不抛异常，实际重置逻辑由定时任务调用
         assertNotNull(LocalDate.now());
+    }
+
+    // ==================== 职位等级大于等于测试 ====================
+
+    @Test
+    void acceptTask_PositionEquals_Success() {
+        // Given - 成员职位等级等于任务要求（都是1级弟子）
+        AcceptTaskRequest request = new AcceptTaskRequest();
+        request.setCharacterId(1L);
+        request.setTemplateId(1L);
+
+        sectMember.setPosition("弟子"); // 等级 1
+        combatTask.setRequiredPosition(1); // 要求 1
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(sectMemberService.getByCharacterId(1L)).thenReturn(sectMember);
+        when(taskTemplateMapper.selectById(1L)).thenReturn(combatTask);
+        doReturn(0L).when(sectTaskService).count(any(LambdaQueryWrapper.class));
+        doReturn(true).when(sectTaskService).save(any(SectTaskProgress.class));
+
+        // When
+        TaskProgressResponse response = sectTaskService.acceptTask(request);
+
+        // Then - 应该成功接取
+        assertNotNull(response);
+        verify(sectTaskService).save(any(SectTaskProgress.class));
+    }
+
+    @Test
+    void acceptTask_PositionHigher_Success() {
+        // Given - 成员职位等级高于任务要求
+        AcceptTaskRequest request = new AcceptTaskRequest();
+        request.setCharacterId(1L);
+        request.setTemplateId(1L);
+
+        sectMember.setPosition("核心弟子"); // 等级 3
+        combatTask.setRequiredPosition(1); // 要求 1（弟子）
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(sectMemberService.getByCharacterId(1L)).thenReturn(sectMember);
+        when(taskTemplateMapper.selectById(1L)).thenReturn(combatTask);
+        doReturn(0L).when(sectTaskService).count(any(LambdaQueryWrapper.class));
+        doReturn(true).when(sectTaskService).save(any(SectTaskProgress.class));
+
+        // When
+        TaskProgressResponse response = sectTaskService.acceptTask(request);
+
+        // Then - 应该成功接取（3 >= 1）
+        assertNotNull(response);
+        verify(sectTaskService).save(any(SectTaskProgress.class));
+    }
+
+    @Test
+    void getAvailableTasks_PositionEquals_CanAcceptTrue() {
+        // Given - 成员职位等级等于任务要求
+        sectMember.setPosition("内门弟子"); // 等级 2
+
+        SectTaskTemplate position2Task = new SectTaskTemplate();
+        position2Task.setTemplateId(3L);
+        position2Task.setRequiredPosition(2); // 要求内门弟子
+        position2Task.setIsActive(true);
+        position2Task.setTaskName("内门弟子任务");
+        position2Task.setTaskType("combat");
+        position2Task.setTargetType("monster_level");
+        position2Task.setTargetValue("1");
+        position2Task.setTargetCount(5);
+        position2Task.setContributionReward(80);
+        position2Task.setReputationReward(15);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(sectMemberService.getByCharacterId(1L)).thenReturn(sectMember);
+        when(taskTemplateMapper.selectList(any(LambdaQueryWrapper.class)))
+                .thenReturn(Arrays.asList(combatTask, position2Task));
+        doReturn(Collections.emptyList()).when(sectTaskService).list(any(LambdaQueryWrapper.class));
+        doReturn(0L).when(sectTaskService).count(any(LambdaQueryWrapper.class));
+
+        // When
+        List<SectTaskResponse> responses = sectTaskService.getAvailableTasks(1L);
+
+        // Then
+        assertEquals(2, responses.size());
+        // 战斗任务（要求1级，成员2级）应该可接取
+        SectTaskResponse combatResponse = responses.stream()
+                .filter(r -> r.getTemplateId().equals(1L))
+                .findFirst()
+                .orElse(null);
+        assertNotNull(combatResponse);
+        assertTrue(combatResponse.getCanAccept());
+
+        // 内门弟子任务（要求2级，成员2级）应该可接取
+        SectTaskResponse position2Response = responses.stream()
+                .filter(r -> r.getTemplateId().equals(3L))
+                .findFirst()
+                .orElse(null);
+        assertNotNull(position2Response);
+        assertTrue(position2Response.getCanAccept());
+    }
+
+    @Test
+    void getAvailableTasks_PositionHigher_CanAcceptTrue() {
+        // Given - 成员职位等级高于任务要求
+        sectMember.setPosition("长老"); // 等级 4
+
+        SectTaskTemplate position2Task = new SectTaskTemplate();
+        position2Task.setTemplateId(3L);
+        position2Task.setRequiredPosition(2); // 要求内门弟子（2级）
+        position2Task.setIsActive(true);
+        position2Task.setTaskName("内门弟子任务");
+        position2Task.setTaskType("combat");
+        position2Task.setTargetType("monster_level");
+        position2Task.setTargetValue("1");
+        position2Task.setTargetCount(5);
+        position2Task.setContributionReward(80);
+        position2Task.setReputationReward(15);
+
+        SectTaskTemplate position3Task = new SectTaskTemplate();
+        position3Task.setTemplateId(4L);
+        position3Task.setRequiredPosition(3); // 要求核心弟子（3级）
+        position3Task.setIsActive(true);
+        position3Task.setTaskName("核心弟子任务");
+        position3Task.setTaskType("combat");
+        position3Task.setTargetType("monster_level");
+        position3Task.setTargetValue("1");
+        position3Task.setTargetCount(5);
+        position3Task.setContributionReward(100);
+        position3Task.setReputationReward(20);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(sectMemberService.getByCharacterId(1L)).thenReturn(sectMember);
+        when(taskTemplateMapper.selectList(any(LambdaQueryWrapper.class)))
+                .thenReturn(Arrays.asList(combatTask, position2Task, position3Task));
+        doReturn(Collections.emptyList()).when(sectTaskService).list(any(LambdaQueryWrapper.class));
+        doReturn(0L).when(sectTaskService).count(any(LambdaQueryWrapper.class));
+
+        // When
+        List<SectTaskResponse> responses = sectTaskService.getAvailableTasks(1L);
+
+        // Then
+        assertEquals(3, responses.size());
+
+        // 所有任务都应该可接取（4 >= 1, 4 >= 2, 4 >= 3）
+        for (SectTaskResponse response : responses) {
+            assertTrue(response.getCanAccept(),
+                    "任务ID " + response.getTemplateId() + " 应该可接取");
+        }
+    }
+
+    @Test
+    void getAvailableTasks_PositionLower_CanAcceptFalse() {
+        // Given - 成员职位等级低于任务要求
+        sectMember.setPosition("弟子"); // 等级 1
+
+        SectTaskTemplate highPositionTask = new SectTaskTemplate();
+        highPositionTask.setTemplateId(3L);
+        highPositionTask.setRequiredPosition(2); // 要求内门弟子（2级）
+        highPositionTask.setIsActive(true);
+        highPositionTask.setTaskName("内门弟子任务");
+        highPositionTask.setTaskType("combat");
+        highPositionTask.setTargetType("monster_level");
+        highPositionTask.setTargetValue("1");
+        highPositionTask.setTargetCount(5);
+        highPositionTask.setContributionReward(80);
+        highPositionTask.setReputationReward(15);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(sectMemberService.getByCharacterId(1L)).thenReturn(sectMember);
+        when(taskTemplateMapper.selectList(any(LambdaQueryWrapper.class)))
+                .thenReturn(Arrays.asList(combatTask, highPositionTask));
+        doReturn(Collections.emptyList()).when(sectTaskService).list(any(LambdaQueryWrapper.class));
+        doReturn(0L).when(sectTaskService).count(any(LambdaQueryWrapper.class));
+
+        // When
+        List<SectTaskResponse> responses = sectTaskService.getAvailableTasks(1L);
+
+        // Then
+        assertEquals(2, responses.size());
+
+        // 战斗任务（要求1级，成员1级）应该可接取
+        SectTaskResponse combatResponse = responses.get(0);
+        assertTrue(combatResponse.getCanAccept());
+
+        // 高级任务（要求2级，成员1级）不应该可接取
+        SectTaskResponse highPositionResponse = responses.get(1);
+        assertFalse(highPositionResponse.getCanAccept());
     }
 }

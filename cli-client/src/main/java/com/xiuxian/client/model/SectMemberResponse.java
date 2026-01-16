@@ -14,6 +14,7 @@ public class SectMemberResponse {
     private String position;
     private Integer contribution;
     private Integer weeklyContribution;
+    private Integer reputation;  // 声望值
     private String joinedAt;
 
     public Long getMemberId() { return memberId; }
@@ -24,6 +25,7 @@ public class SectMemberResponse {
     public String getPosition() { return position; }
     public Integer getContribution() { return contribution; }
     public Integer getWeeklyContribution() { return weeklyContribution; }
+    public Integer getReputation() { return reputation; }
     public String getJoinedAt() { return joinedAt; }
 
     public void setMemberId(Long memberId) { this.memberId = memberId; }
@@ -34,5 +36,6 @@ public class SectMemberResponse {
     public void setPosition(String position) { this.position = position; }
     public void setContribution(Integer contribution) { this.contribution = contribution; }
     public void setWeeklyContribution(Integer weeklyContribution) { this.weeklyContribution = weeklyContribution; }
+    public void setReputation(Integer reputation) { this.reputation = reputation; }
     public void setJoinedAt(String joinedAt) { this.joinedAt = joinedAt; }
 }
