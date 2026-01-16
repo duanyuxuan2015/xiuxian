@@ -41,6 +41,12 @@ public class CharacterResponse {
     private String currentState;
     private LocalDateTime createdAt;
 
+    // 抗性属性
+    private Integer physicalResist;
+    private Integer iceResist;
+    private Integer fireResist;
+    private Integer lightningResist;
+
     public CharacterResponse() {
     }
 
@@ -333,5 +339,37 @@ public class CharacterResponse {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Integer getPhysicalResist() {
+        return physicalResist;
+    }
+
+    public void setPhysicalResist(Integer physicalResist) {
+        this.physicalResist = physicalResist;
+    }
+
+    public Integer getIceResist() {
+        return iceResist;
+    }
+
+    public void setIceResist(Integer iceResist) {
+        this.iceResist = iceResist;
+    }
+
+    public Integer getFireResist() {
+        return fireResist;
+    }
+
+    public void setFireResist(Integer fireResist) {
+        this.fireResist = fireResist;
+    }
+
+    public Integer getLightningResist() {
+        return lightningResist;
+    }
+
+    public void setLightningResist(Integer lightningResist) {
+        this.lightningResist = lightningResist;
     }
 }

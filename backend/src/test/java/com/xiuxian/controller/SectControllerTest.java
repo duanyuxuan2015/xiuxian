@@ -118,4 +118,93 @@ public class SectControllerTest {
                 .andExpect(jsonPath("$.data[0].itemId").value(1))
                 .andExpect(jsonPath("$.data[0].itemName").value("Spirit Pill"));
     }
+
+    @Test
+    public void getShopItems_WithCompleteDetails_Success() throws Exception {
+        SectShopItemResponse item = new SectShopItemResponse();
+        item.setItemId(1L);
+        item.setItemName("雪莲");
+        item.setItemType("material");
+        item.setItemTier(1);
+        item.setPrice(100);
+        item.setStock(50);
+        item.setDescription("珍贵的炼丹材料");
+
+        List<SectShopItemResponse> items = Collections.singletonList(item);
+
+        when(sectMemberService.getShopItems(anyLong())).thenReturn(items);
+
+        mockMvc.perform(get("/sect/shop/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data[0].itemId").value(1))
+                .andExpect(jsonPath("$.data[0].itemName").value("雪莲"))
+                .andExpect(jsonPath("$.data[0].itemType").value("material"))
+                .andExpect(jsonPath("$.data[0].itemTier").value(1))
+                .andExpect(jsonPath("$.data[0].price").value(100))
+                .andExpect(jsonPath("$.data[0].stock").value(50))
+                .andExpect(jsonPath("$.data[0].description").value("珍贵的炼丹材料"));
+    }
+
+    @Test
+    public void getShopItems_EmptyList_Success() throws Exception {
+        when(sectMemberService.getShopItems(anyLong())).thenReturn(Collections.emptyList());
+
+        mockMvc.perform(get("/sect/shop/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data").isArray());
+    }
+
+    @Test
+    public void buyShopItem_Success() throws Exception {
+        SectShopBuyRequest request = new SectShopBuyRequest();
+        request.setCharacterId(1L);
+        request.setItemId(1L);
+        request.setQuantity(2);
+
+        when(sectMemberService.buyShopItem(any(SectShopBuyRequest.class))).thenReturn("成功购买");
+
+        mockMvc.perform(post("/sect/shop/buy")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+    }
+
+    @Test
+    public void buyShopItem_MultipleItems_Success() throws Exception {
+        SectShopBuyRequest request = new SectShopBuyRequest();
+        request.setCharacterId(1L);
+        request.setItemId(2L);
+        request.setQuantity(5);
+
+        when(sectMemberService.buyShopItem(any(SectShopBuyRequest.class))).thenReturn("成功购买");
+
+        mockMvc.perform(post("/sect/shop/buy")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+    }
+
+    @Test
+    public void getShopItems_OutOfStock_Success() throws Exception {
+        SectShopItemResponse item = new SectShopItemResponse();
+        item.setItemId(1L);
+        item.setItemName("雪莲");
+        item.setItemType("material");
+        item.setPrice(100);
+        item.setStock(0);
+        item.setDescription("珍贵的炼丹材料");
+
+        List<SectShopItemResponse> items = Collections.singletonList(item);
+
+        when(sectMemberService.getShopItems(anyLong())).thenReturn(items);
+
+        mockMvc.perform(get("/sect/shop/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data[0].stock").value(0));
+    }
 }

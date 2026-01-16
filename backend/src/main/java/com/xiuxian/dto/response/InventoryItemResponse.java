@@ -15,6 +15,19 @@ public class InventoryItemResponse {
     private Integer quantity;
     private LocalDateTime acquiredAt;
 
+    // 装备详细属性（仅当 itemType=equipment 时有值）
+    private Integer attackPower;
+    private Integer defensePower;
+    private Integer healthBonus;
+    private Integer criticalRate;
+    private Integer speedBonus;
+    private Integer physicalResist;
+    private Integer iceResist;
+    private Integer fireResist;
+    private Integer lightningResist;
+    private Integer baseScore;
+    private Integer enhancementLevel;
+
     public InventoryItemResponse() {
     }
 
@@ -73,6 +86,40 @@ public class InventoryItemResponse {
     public void setAcquiredAt(LocalDateTime acquiredAt) {
         this.acquiredAt = acquiredAt;
     }
+
+    // 装备属性的 getter 和 setter
+    public Integer getAttackPower() { return attackPower; }
+    public void setAttackPower(Integer attackPower) { this.attackPower = attackPower; }
+
+    public Integer getDefensePower() { return defensePower; }
+    public void setDefensePower(Integer defensePower) { this.defensePower = defensePower; }
+
+    public Integer getHealthBonus() { return healthBonus; }
+    public void setHealthBonus(Integer healthBonus) { this.healthBonus = healthBonus; }
+
+    public Integer getCriticalRate() { return criticalRate; }
+    public void setCriticalRate(Integer criticalRate) { this.criticalRate = criticalRate; }
+
+    public Integer getSpeedBonus() { return speedBonus; }
+    public void setSpeedBonus(Integer speedBonus) { this.speedBonus = speedBonus; }
+
+    public Integer getPhysicalResist() { return physicalResist; }
+    public void setPhysicalResist(Integer physicalResist) { this.physicalResist = physicalResist; }
+
+    public Integer getIceResist() { return iceResist; }
+    public void setIceResist(Integer iceResist) { this.iceResist = iceResist; }
+
+    public Integer getFireResist() { return fireResist; }
+    public void setFireResist(Integer fireResist) { this.fireResist = fireResist; }
+
+    public Integer getLightningResist() { return lightningResist; }
+    public void setLightningResist(Integer lightningResist) { this.lightningResist = lightningResist; }
+
+    public Integer getBaseScore() { return baseScore; }
+    public void setBaseScore(Integer baseScore) { this.baseScore = baseScore; }
+
+    public Integer getEnhancementLevel() { return enhancementLevel; }
+    public void setEnhancementLevel(Integer enhancementLevel) { this.enhancementLevel = enhancementLevel; }
 
     @Override
     public String toString() {

@@ -142,6 +142,52 @@ public class ApiClient {
     }
 
     /**
+     * 发送DELETE请求（带查询参数）
+     */
+    public static String delete(String endpoint, String queryParams) throws IOException, InterruptedException {
+        String fullUrl = BASE_URL + endpoint;
+        if (queryParams != null && !queryParams.isEmpty()) {
+            fullUrl += "?" + queryParams;
+        }
+
+        if (DEBUG) {
+            System.out.println("[API] DELETE 请求: " + fullUrl);
+        }
+
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(fullUrl))
+                .timeout(Duration.ofSeconds(20))
+                .header("Content-Type", "application/json")
+                .DELETE()
+                .build();
+
+        try {
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (DEBUG) {
+                System.out.println("[API] 响应状态: " + response.statusCode());
+            }
+
+            if (response.statusCode() >= 400) {
+                System.err.println("[API] 错误响应: " + response.body());
+                throw new RuntimeException("HTTP Error: " + response.statusCode() + " - " + response.body());
+            }
+
+            return response.body();
+        } catch (ConnectException e) {
+            System.err.println("[API] 连接失败: 无法连接到服务器 " + BASE_URL);
+            System.err.println("[API] 请确认后端服务是否已启动");
+            throw new IOException("无法连接到服务器: " + BASE_URL, e);
+        } catch (HttpTimeoutException e) {
+            System.err.println("[API] 请求超时: 服务器响应时间过长");
+            throw new IOException("请求超时", e);
+        } catch (InterruptedException e) {
+            System.err.println("[API] 请求被中断");
+            Thread.currentThread().interrupt();
+            throw e;
+        }
+    }
+
+    /**
      * 解析响应，提取data字段
      */
     public static <T> T parseResponse(String jsonResponse, Class<T> classOfT) {

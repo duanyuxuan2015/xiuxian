@@ -62,6 +62,12 @@ mybatis-plus:
     cache-enabled: false
     # 延迟加载
     lazy-loading-enabled: false
+  # 分页配置
+  configuration-properties:
+    # 启用分页插件
+    page-size-zero: false
+    reasonable: true
+    support-methods-arguments: true
 
 # Spring Boot Actuator 配置
 management:
@@ -109,6 +115,9 @@ app:
   stamina-recovery-interval: 60
   # 灵力恢复间隔（秒）
   spiritual-power-recovery-interval: 60
+  # 挂机战斗配置
+  idle-combat:
+    max-battles: 5  # 挂机最大战斗轮数
 
   # 属性计算配置（FR-008）
   attributes:

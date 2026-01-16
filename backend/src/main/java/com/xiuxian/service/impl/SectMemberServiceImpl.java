@@ -12,8 +12,14 @@ import com.xiuxian.entity.PlayerCharacter;
 import com.xiuxian.entity.Sect;
 import com.xiuxian.entity.SectMember;
 import com.xiuxian.entity.SectShopItem;
+import com.xiuxian.entity.Skill;
+import com.xiuxian.entity.Equipment;
+import com.xiuxian.entity.Pill;
 import com.xiuxian.mapper.SectMemberMapper;
 import com.xiuxian.mapper.SectShopItemMapper;
+import com.xiuxian.mapper.SkillMapper;
+import com.xiuxian.mapper.EquipmentMapper;
+import com.xiuxian.mapper.PillMapper;
 import com.xiuxian.service.CharacterService;
 import com.xiuxian.service.InventoryService;
 import com.xiuxian.service.SectMemberService;
@@ -48,15 +54,24 @@ public class SectMemberServiceImpl extends ServiceImpl<SectMemberMapper, SectMem
     private final SectService sectService;
     private final InventoryService inventoryService;
     private final SectShopItemMapper shopItemMapper;
+    private final SkillMapper skillMapper;
+    private final EquipmentMapper equipmentMapper;
+    private final PillMapper pillMapper;
 
     public SectMemberServiceImpl(@Lazy CharacterService characterService,
             SectService sectService,
             InventoryService inventoryService,
-            SectShopItemMapper shopItemMapper) {
+            SectShopItemMapper shopItemMapper,
+            SkillMapper skillMapper,
+            EquipmentMapper equipmentMapper,
+            PillMapper pillMapper) {
         this.characterService = characterService;
         this.sectService = sectService;
         this.inventoryService = inventoryService;
         this.shopItemMapper = shopItemMapper;
+        this.skillMapper = skillMapper;
+        this.equipmentMapper = equipmentMapper;
+        this.pillMapper = pillMapper;
     }
 
     @Override
@@ -181,7 +196,45 @@ public class SectMemberServiceImpl extends ServiceImpl<SectMemberMapper, SectMem
 
         List<SectShopItemResponse> responses = new ArrayList<>();
         for (SectShopItem item : items) {
-            responses.add(SectShopItemResponse.fromEntity(item, memberPosition));
+            SectShopItemResponse response = SectShopItemResponse.fromEntity(item, memberPosition);
+
+            // 根据物品类型填充详细信息
+            Long refItemId = item.getRefItemId();
+            if (refItemId != null) {
+                String itemType = item.getItemType();
+                switch (itemType) {
+                    case "skill":
+                        Skill skill = skillMapper.selectById(refItemId);
+                        if (skill != null) {
+                            response.setBaseDamage(skill.getBaseDamage());
+                            response.setSpiritualCost(skill.getSpiritualCost());
+                            response.setSkillType(skill.getFunctionType());
+                            response.setElementType(skill.getElementType());
+                        }
+                        break;
+                    case "equipment":
+                        Equipment equipment = equipmentMapper.selectById(refItemId);
+                        if (equipment != null) {
+                            response.setAttackBonus(equipment.getAttackPower());
+                            response.setDefenseBonus(equipment.getDefensePower());
+                            response.setHealthBonus(equipment.getHealthBonus());
+                            response.setEquipmentSlot(equipment.getEquipmentType());
+                        }
+                        break;
+                    case "pill":
+                        Pill pill = pillMapper.selectById(refItemId);
+                        if (pill != null) {
+                            response.setHealAmount(pill.getEffectValue());
+                            response.setBuffDuration(pill.getDuration());
+                        }
+                        break;
+                    case "material":
+                        // 材料类型通常只有基础信息，不需要额外查询
+                        break;
+                }
+            }
+
+            responses.add(response);
         }
 
         return responses;
@@ -287,7 +340,8 @@ public class SectMemberServiceImpl extends ServiceImpl<SectMemberMapper, SectMem
         return responses;
     }
 
-    private SectMember getByCharacterId(Long characterId) {
+    @Override
+    public SectMember getByCharacterId(Long characterId) {
         LambdaQueryWrapper<SectMember> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(SectMember::getCharacterId, characterId);
         return this.getOne(wrapper);

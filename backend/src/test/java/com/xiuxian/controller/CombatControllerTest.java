@@ -2,6 +2,7 @@ package com.xiuxian.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiuxian.common.response.PageResult;
+import com.xiuxian.config.IdleCombatProperties;
 import com.xiuxian.dto.request.CombatStartRequest;
 import com.xiuxian.dto.response.CombatResponse;
 import com.xiuxian.entity.CombatRecord;
@@ -37,6 +38,9 @@ public class CombatControllerTest {
 
     @MockBean
     private CombatService combatService;
+
+    @MockBean
+    private IdleCombatProperties idleCombatProperties;
 
     @Autowired
     private ObjectMapper objectMapper;

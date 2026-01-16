@@ -70,4 +70,11 @@ public interface SectMemberService extends IService<SectMember> {
      * @return 成员列表
      */
     List<SectMemberResponse> getSectMembers(Long sectId);
+
+    /**
+     * 根据角色ID获取宗门成员信息
+     * @param characterId 角色ID
+     * @return 成员信息，未加入宗门则返回null
+     */
+    SectMember getByCharacterId(Long characterId);
 }

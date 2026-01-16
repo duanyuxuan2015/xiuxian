@@ -13,10 +13,12 @@ import com.xiuxian.entity.Realm;
 import com.xiuxian.entity.Sect;
 import com.xiuxian.mapper.CharacterMapper;
 import com.xiuxian.service.CharacterService;
+import com.xiuxian.service.EquipmentService;
 import com.xiuxian.service.RealmService;
 import com.xiuxian.service.SectService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,12 +52,15 @@ public class CharacterServiceImpl extends ServiceImpl<CharacterMapper, PlayerCha
     private final RealmService realmService;
     private final SectService sectService;
     private final AttributeProperties attributeProperties;
+    private final EquipmentService equipmentService;
 
     public CharacterServiceImpl(RealmService realmService, SectService sectService,
-                                AttributeProperties attributeProperties) {
+                                AttributeProperties attributeProperties,
+                                @Lazy EquipmentService equipmentService) {
         this.realmService = realmService;
         this.sectService = sectService;
         this.attributeProperties = attributeProperties;
+        this.equipmentService = equipmentService;
     }
 
     @Override
@@ -149,6 +154,13 @@ public class CharacterServiceImpl extends ServiceImpl<CharacterMapper, PlayerCha
         CharacterResponse response = CharacterResponse.fromEntity(character, realmName, sectName);
         response.setAttack(calculateAttack(character));
         response.setDefense(calculateDefense(character));
+
+        // 5. 获取装备抗性加成
+        EquipmentService.EquipmentBonus bonus = equipmentService.calculateEquipmentBonus(characterId);
+        response.setPhysicalResist(bonus.physicalResistBonus);
+        response.setIceResist(bonus.iceResistBonus);
+        response.setFireResist(bonus.fireResistBonus);
+        response.setLightningResist(bonus.lightningResistBonus);
 
         return response;
     }

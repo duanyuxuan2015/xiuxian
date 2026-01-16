@@ -179,6 +179,12 @@ public class EquipmentServiceImpl extends ServiceImpl<EquipmentMapper, Equipment
         bonus.healthBonus = 0;
         bonus.staminaBonus = 0;
         bonus.spiritualPowerBonus = 0;
+        bonus.criticalRateBonus = 0;
+        bonus.speedBonus = 0;
+        bonus.physicalResistBonus = 0;
+        bonus.iceResistBonus = 0;
+        bonus.fireResistBonus = 0;
+        bonus.lightningResistBonus = 0;
 
         // 累加所有装备的属性加成
         for (CharacterEquipment ce : characterEquipments) {
@@ -187,12 +193,18 @@ public class EquipmentServiceImpl extends ServiceImpl<EquipmentMapper, Equipment
                 bonus.attackBonus += safeAdd(equipment.getAttackPower());
                 bonus.defenseBonus += safeAdd(equipment.getDefensePower());
                 bonus.healthBonus += safeAdd(equipment.getHealthBonus());
-                // 装备可能还有其他属性加成，这里暂时只处理基础属性
+                bonus.criticalRateBonus += safeAdd(equipment.getCriticalRate());
+                bonus.speedBonus += safeAdd(equipment.getSpeedBonus());
+                bonus.physicalResistBonus += safeAdd(equipment.getPhysicalResist());
+                bonus.iceResistBonus += safeAdd(equipment.getIceResist());
+                bonus.fireResistBonus += safeAdd(equipment.getFireResist());
+                bonus.lightningResistBonus += safeAdd(equipment.getLightningResist());
             }
         }
 
-        logger.debug("计算角色{}的装备加成: attack={}, defense={}, health={}",
-                characterId, bonus.attackBonus, bonus.defenseBonus, bonus.healthBonus);
+        logger.debug("计算角色{}的装备加成: attack={}, defense={}, health={}, crit={}, speed={}",
+                characterId, bonus.attackBonus, bonus.defenseBonus, bonus.healthBonus,
+                bonus.criticalRateBonus, bonus.speedBonus);
 
         return bonus;
     }
@@ -208,8 +220,9 @@ public class EquipmentServiceImpl extends ServiceImpl<EquipmentMapper, Equipment
      * 验证槽位是否有效
      */
     private boolean isValidSlot(String slot) {
-        return "武器".equals(slot) || "头盔".equals(slot) || "护甲".equals(slot)
-                || "腰带".equals(slot) || "鞋子".equals(slot);
+        return "武器".equals(slot) || "头盔".equals(slot) || "铠甲".equals(slot)
+                || "护手".equals(slot) || "护腿".equals(slot) || "靴子".equals(slot)
+                || "戒指1".equals(slot) || "戒指2".equals(slot) || "项链".equals(slot);
     }
 
     /**
@@ -225,12 +238,19 @@ public class EquipmentServiceImpl extends ServiceImpl<EquipmentMapper, Equipment
                 return "武器".equals(equipmentType);
             case "头盔":
                 return "头盔".equals(equipmentType);
-            case "护甲":
-                return "护甲".equals(equipmentType);
-            case "腰带":
-                return "腰带".equals(equipmentType);
-            case "鞋子":
-                return "鞋子".equals(equipmentType);
+            case "铠甲":
+                return "铠甲".equals(equipmentType);
+            case "护手":
+                return "护手".equals(equipmentType);
+            case "护腿":
+                return "护腿".equals(equipmentType);
+            case "靴子":
+                return "靴子".equals(equipmentType);
+            case "戒指1":
+            case "戒指2":
+                return "戒指".equals(equipmentType);
+            case "项链":
+                return "项链".equals(equipmentType);
             default:
                 return false;
         }

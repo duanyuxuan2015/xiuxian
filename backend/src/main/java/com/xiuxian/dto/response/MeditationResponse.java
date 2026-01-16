@@ -13,6 +13,9 @@ public class MeditationResponse {
     private Integer spiritualPowerRecovered;
     private Integer currentSpiritualPower;
     private Integer maxSpiritualPower;
+    private Integer healthRecovered;
+    private Integer currentHealth;
+    private Integer maxHealth;
     private String message;
 
     public Long getCharacterId() {
@@ -85,5 +88,29 @@ public class MeditationResponse {
 
     public void setMessage(String message) {
         this.message = message;
+    }
+
+    public Integer getHealthRecovered() {
+        return healthRecovered;
+    }
+
+    public void setHealthRecovered(Integer healthRecovered) {
+        this.healthRecovered = healthRecovered;
+    }
+
+    public Integer getCurrentHealth() {
+        return currentHealth;
+    }
+
+    public void setCurrentHealth(Integer currentHealth) {
+        this.currentHealth = currentHealth;
+    }
+
+    public Integer getMaxHealth() {
+        return maxHealth;
+    }
+
+    public void setMaxHealth(Integer maxHealth) {
+        this.maxHealth = maxHealth;
     }
 }

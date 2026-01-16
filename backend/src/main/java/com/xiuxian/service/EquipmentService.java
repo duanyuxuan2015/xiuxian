@@ -41,5 +41,11 @@ public interface EquipmentService extends IService<Equipment> {
         public Integer healthBonus;
         public Integer staminaBonus;
         public Integer spiritualPowerBonus;
+        public Integer criticalRateBonus;
+        public Integer speedBonus;
+        public Integer physicalResistBonus;
+        public Integer iceResistBonus;
+        public Integer fireResistBonus;
+        public Integer lightningResistBonus;
     }
 }

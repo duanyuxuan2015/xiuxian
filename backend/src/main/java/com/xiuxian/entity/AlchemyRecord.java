@@ -1,6 +1,7 @@
 package com.xiuxian.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
@@ -12,23 +13,29 @@ import java.time.LocalDateTime;
 @TableName("alchemy_record")
 public class AlchemyRecord {
 
-    @TableId(type = IdType.AUTO)
+    @TableId(value = "alchemy_id", type = IdType.AUTO)
     private Long recordId;
 
     private Long characterId;
 
     private Long recipeId;
 
+    @TableField(exist = false)
     private Long pillId;
 
+    @TableField("is_success")
     private Boolean success;
 
+    @TableField("output_quality")
     private String resultQuality;
 
+    @TableField("output_quantity")
     private Integer quantity;
 
+    @TableField("exp_gained")
     private Integer experienceGained;
 
+    @TableField("alchemy_time")
     private LocalDateTime createdAt;
 
     public AlchemyRecord() {

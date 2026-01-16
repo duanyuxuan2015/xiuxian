@@ -310,4 +310,23 @@ public class SkillServiceImpl extends ServiceImpl<CharacterSkillMapper, Characte
         return charSkills.stream()
                 .collect(Collectors.toMap(CharacterSkill::getSkillId, cs -> cs));
     }
+
+    @Override
+    public List<SkillResponse> getAllSkills() {
+        // 获取所有技能（按阶位和类型排序）
+        LambdaQueryWrapper<Skill> wrapper = new LambdaQueryWrapper<>();
+        wrapper.orderByAsc(Skill::getTier)
+                .orderByAsc(Skill::getFunctionType)
+                .orderByAsc(Skill::getSkillId);
+        List<Skill> skills = skillMapper.selectList(wrapper);
+
+        // 转换为响应对象（不包含角色技能信息）
+        List<SkillResponse> responses = new ArrayList<>();
+        for (Skill skill : skills) {
+            responses.add(SkillResponse.fromEntity(skill, null));
+        }
+
+        logger.info("获取所有技能列表: 总数={}", responses.size());
+        return responses;
+    }
 }

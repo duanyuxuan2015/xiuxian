@@ -105,6 +105,19 @@ public class InventoryController {
                                 equipment.getEquipmentType(),
                                 equipment.getQuality(),
                                 equipment.getBaseScore()));
+
+                        // 填充装备详细属性
+                        response.setAttackPower(equipment.getAttackPower());
+                        response.setDefensePower(equipment.getDefensePower());
+                        response.setHealthBonus(equipment.getHealthBonus());
+                        response.setCriticalRate(equipment.getCriticalRate());
+                        response.setSpeedBonus(equipment.getSpeedBonus());
+                        response.setPhysicalResist(equipment.getPhysicalResist());
+                        response.setIceResist(equipment.getIceResist());
+                        response.setFireResist(equipment.getFireResist());
+                        response.setLightningResist(equipment.getLightningResist());
+                        response.setBaseScore(equipment.getBaseScore());
+                        response.setEnhancementLevel(equipment.getEnhancementLevel());
                     }
                     break;
 

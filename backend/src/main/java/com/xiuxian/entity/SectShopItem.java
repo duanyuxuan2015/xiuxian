@@ -21,6 +21,10 @@ public class SectShopItem {
 
     private String itemName;
 
+    private Integer itemTier;
+
+    private String description;
+
     private Integer price;
 
     private Integer stockLimit;
@@ -70,6 +74,22 @@ public class SectShopItem {
 
     public void setItemName(String itemName) {
         this.itemName = itemName;
+    }
+
+    public Integer getItemTier() {
+        return itemTier;
+    }
+
+    public void setItemTier(Integer itemTier) {
+        this.itemTier = itemTier;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
     }
 
     public Integer getPrice() {

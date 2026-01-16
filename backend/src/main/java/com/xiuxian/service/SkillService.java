@@ -71,4 +71,10 @@ public interface SkillService extends IService<CharacterSkill> {
      * @param proficiency 增加的熟练度
      */
     void addProficiency(Long characterId, Long skillId, int proficiency);
+
+    /**
+     * 获取所有技能列表
+     * @return 所有技能列表
+     */
+    List<SkillResponse> getAllSkills();
 }

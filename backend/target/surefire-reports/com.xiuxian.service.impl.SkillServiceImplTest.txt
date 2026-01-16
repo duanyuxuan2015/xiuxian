@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.xiuxian.service.impl.SkillServiceImplTest
--------------------------------------------------------------------------------
-Tests run: 19, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.122 s - in com.xiuxian.service.impl.SkillServiceImplTest

@@ -7,9 +7,14 @@ import com.google.gson.reflect.TypeToken;
 import com.xiuxian.client.model.*;
 import com.xiuxian.client.util.ApiClient;
 
+import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Type;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
 
@@ -23,6 +28,9 @@ public class XiuxianGameClient {
     private static CharacterResponse currentCharacter = null;
     // 使用ApiClient的Gson实例，它已配置LocalDateTime支持
     private static final Gson gson = ApiClient.getGson();
+
+    // 会话文件路径（用户主目录下的.xiuxian_session.json）
+    private static final String SESSION_FILE = System.getProperty("user.home") + File.separator + ".xiuxian_session.json";
 
     public static void main(String[] args) {
         // 设置控制台编码为 UTF-8
@@ -88,6 +96,9 @@ public class XiuxianGameClient {
             System.exit(1);
             return;
         }
+
+        // 尝试加载保存的会话并自动登录
+        loadSavedSession();
 
         while (true) {
             if (currentCharacterId == null) {
@@ -176,6 +187,8 @@ public class XiuxianGameClient {
                 case "0":
                     currentCharacterId = null;
                     currentCharacter = null;
+                    // 清除保存的会话
+                    clearSession();
                     System.out.println("\n已退出登录！");
                     break;
                 default: System.out.println("\n无效选择！");
@@ -337,6 +350,8 @@ public class XiuxianGameClient {
             System.out.println("  气运: " + fortune);
             currentCharacterId = character.getCharacterId();
             currentCharacter = character;
+            // 保存会话以便下次自动登录
+            saveSession();
             pressEnterToContinue();
         } else {
             System.out.println("\n❌ 角色创建失败！");
@@ -360,6 +375,8 @@ public class XiuxianGameClient {
                 currentCharacterId = character.getCharacterId();
                 currentCharacter = character;
                 System.out.println("\n✅ 登录成功！欢迎回来，" + character.getPlayerName() + "！");
+                // 保存会话以便下次自动登录
+                saveSession();
                 pressEnterToContinue();
             } else {
                 System.out.println("\n❌ 角色不存在！");
@@ -435,6 +452,12 @@ public class XiuxianGameClient {
                 formatDouble(currentCharacter.getCritRate(), "0") + "%",
                 formatDouble(currentCharacter.getCritDamage(), "0") + "%",
                 formatDouble(currentCharacter.getSpeed(), "0"));
+        System.out.println("╠══════════════════════════════════════════════════════════════╣");
+        System.out.printf("║ 物理: %-3s 冰系: %-3s 火系: %-3s 雷系: %-3s        ║\n",
+                formatValue(currentCharacter.getPhysicalResist(), "0"),
+                formatValue(currentCharacter.getIceResist(), "0"),
+                formatValue(currentCharacter.getFireResist(), "0"),
+                formatValue(currentCharacter.getLightningResist(), "0"));
         System.out.println("╠══════════════════════════════════════════════════════════════╣");
         System.out.printf("║ 体质: %-3s 精神: %-3s 悟性: %-3s 机缘: %-3s 气运: %-3s ║\n",
                 formatValue(currentCharacter.getConstitution(), "?"),
@@ -594,6 +617,8 @@ public class XiuxianGameClient {
             System.out.println("✅ 打坐完成！");
             System.out.println(result.getMessage());
             System.out.println("\n恢复结果:");
+            System.out.println("  恢复气血: " + result.getHealthRecovered());
+            System.out.println("  当前气血: " + result.getCurrentHealth() + "/" + result.getMaxHealth());
             System.out.println("  恢复体力: " + result.getStaminaRecovered());
             System.out.println("  当前体力: " + result.getCurrentStamina() + "/" + result.getMaxStamina());
             System.out.println("  恢复灵力: " + result.getSpiritualPowerRecovered());
@@ -727,35 +752,39 @@ public class XiuxianGameClient {
     }
 
     /**
+     * 获取妖兽列表（辅助方法）
+     */
+    private static List<Monster> getMonstersList() throws IOException, InterruptedException {
+        String response = ApiClient.get("/combat/monsters?characterId=" + currentCharacterId);
+        Type listType = new TypeToken<List<Monster>>(){}.getType();
+
+        JsonObject jsonObject = gson.fromJson(response, JsonObject.class);
+        if (jsonObject.has("data") && jsonObject.get("data").isJsonArray()) {
+            JsonArray array = jsonObject.get("data").getAsJsonArray();
+            return gson.fromJson(array, listType);
+        }
+        return null;
+    }
+
+    /**
      * 显示妖兽列表
      */
     private static void showMonsters() throws IOException, InterruptedException {
         System.out.println("\n--- 可挑战妖兽列表 ---");
 
-        String response = ApiClient.get("/combat/monsters?characterId=" + currentCharacterId);
-        Type listType = new TypeToken<List<Monster>>(){}.getType();
-        List<Monster> monsters = gson.fromJson(JsonArray.class.equals(listType) ?
-                new JsonObject().get("data").getAsJsonArray() :
-                new JsonObject().getAsJsonArray("data"),
-                listType);
-
-        // 重新解析
-        JsonObject jsonObject = gson.fromJson(response, JsonObject.class);
-        if (jsonObject.has("data") && jsonObject.get("data").isJsonArray()) {
-            JsonArray array = jsonObject.get("data").getAsJsonArray();
-            monsters = gson.fromJson(array, listType);
-        }
+        List<Monster> monsters = getMonstersList();
 
         if (monsters != null && !monsters.isEmpty()) {
-            System.out.println("\nID    妖兽名称              境界      攻击   防御   经验奖励");
-            System.out.println("────────────────────────────────────────────────────────────");
-            for (int i = 0; i < monsters.size(); i++) {
-                Monster m = monsters.get(i);
-                System.out.printf("%-4d  %-20s  %-8s  %-6d %-6d %-8d\n",
+            System.out.println("\n┌────┬──────────────────┬──────────┬──────┬──────┬──────────┐");
+            System.out.println("│ ID │ 妖兽名称          │ 境界     │ 攻击 │ 防御 │ 经验奖励 │");
+            System.out.println("├────┼──────────────────┼──────────┼──────┼──────┼──────────┤");
+            for (Monster m : monsters) {
+                System.out.printf("│ %2d │ %-16s │ %-8s │ %4d │ %4d │ %8d │%n",
                         m.getMonsterId(), m.getMonsterName(), m.getRealmName(),
                         m.getAttack(), m.getDefense(), m.getExpReward());
             }
-            System.out.println("\n提示：输入ID开始战斗（例如：输入1挑战毒蛇）");
+            System.out.println("└────┴──────────────────┴──────────┴──────┴──────┴──────────┘");
+            System.out.println("\n💡 提示：输入妖兽ID开始战斗（例如：输入1挑战毒蛇）");
         } else {
             System.out.println("\n暂无可挑战的妖兽！");
         }
@@ -768,8 +797,36 @@ public class XiuxianGameClient {
      */
     private static void startCombat() throws IOException, InterruptedException {
         System.out.println("\n--- 开始战斗 ---");
-        System.out.print("请输入妖兽ID: ");
+
+        // 先显示可挑战的妖兽列表
+        List<Monster> monsters = getMonstersList();
+
+        if (monsters == null || monsters.isEmpty()) {
+            System.out.println("\n暂无可挑战的妖兽！");
+            pressEnterToContinue();
+            return;
+        }
+
+        // 显示妖兽列表
+        System.out.println("\n可挑战妖兽列表:");
+        System.out.println("┌────┬──────────────────┬──────────┬──────┬──────┬──────────┐");
+        System.out.println("│ ID │ 妖兽名称          │ 境界     │ 攻击 │ 防御 │ 经验奖励 │");
+        System.out.println("├────┼──────────────────┼──────────┼──────┼──────┼──────────┤");
+        for (Monster m : monsters) {
+            System.out.printf("│ %2d │ %-16s │ %-8s │ %4d │ %4d │ %8d │%n",
+                    m.getMonsterId(), m.getMonsterName(), m.getRealmName(),
+                    m.getAttack(), m.getDefense(), m.getExpReward());
+        }
+        System.out.println("└────┴──────────────────┴──────────┴──────┴──────┴──────────┘");
+
+        // 提示用户输入
+        System.out.print("\n请输入妖兽ID (直接回车返回): ");
         String monsterIdStr = scanner.nextLine();
+
+        // 空输入直接返回
+        if (monsterIdStr.isEmpty()) {
+            return;
+        }
 
         try {
             Long monsterId = Long.parseLong(monsterIdStr);
@@ -806,7 +863,6 @@ public class XiuxianGameClient {
                 System.out.println("  1. 妖兽ID不存在");
                 System.out.println("  2. 体力不足");
                 System.out.println("  3. 角色状态不允许战斗");
-                System.out.println("\n提示：先选择「1. 查看可挑战妖兽」查看有效的妖兽ID");
             }
         } catch (NumberFormatException e) {
             System.out.println("\n❌ 无效的妖兽ID！请输入数字。");
@@ -823,11 +879,50 @@ public class XiuxianGameClient {
      */
     private static void startAutoCombat() throws IOException, InterruptedException {
         System.out.println("\n--- 🤖 挂机战斗 ---");
-        System.out.print("请输入妖兽ID: ");
+
+        // 先显示妖兽列表
+        List<Monster> monsters = getMonstersList();
+        if (monsters == null || monsters.isEmpty()) {
+            System.out.println("\n暂无可挑战的妖兽！");
+            pressEnterToContinue();
+            return;
+        }
+
+        // 显示妖兽列表
+        System.out.println("\n可挑战妖兽列表:");
+        System.out.println("┌────┬──────────────────┬──────────┬──────┬──────┬──────────┐");
+        System.out.println("│ ID │ 妖兽名称          │ 境界     │ 攻击 │ 防御 │ 经验奖励 │");
+        System.out.println("├────┼──────────────────┼──────────┼──────┼──────┼──────────┤");
+        for (Monster m : monsters) {
+            System.out.printf("│ %2d │ %-16s │ %-8s │ %4d │ %4d │ %8d │%n",
+                    m.getMonsterId(), m.getMonsterName(), m.getRealmName(),
+                    m.getAttack(), m.getDefense(), m.getExpReward());
+        }
+        System.out.println("└────┴──────────────────┴──────────┴──────┴──────┴──────────┘");
+        System.out.println("\n💡 提示：挂机将自动重复战斗，直到体力耗尽或战斗失败");
+
+        System.out.print("\n请输入妖兽ID: ");
         String monsterIdStr = scanner.nextLine();
 
         try {
             Long monsterId = Long.parseLong(monsterIdStr);
+
+            // 获取挂机配置
+            int maxBattles = 30; // 默认值
+            try {
+                String configResponse = ApiClient.get("/combat/idle-config");
+                JsonObject configJson = gson.fromJson(configResponse, JsonObject.class);
+                if (configJson.has("code") && configJson.get("code").getAsInt() == 200) {
+                    if (configJson.has("data")) {
+                        JsonObject configData = configJson.getAsJsonObject("data");
+                        if (configData.has("maxBattles")) {
+                            maxBattles = configData.get("maxBattles").getAsInt();
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("获取挂机配置失败，使用默认值30轮");
+            }
 
             // 统计信息
             int totalBattles = 0;
@@ -835,13 +930,14 @@ public class XiuxianGameClient {
             int defeats = 0;
             int totalExpGained = 0;
             int totalSpiritStonesGained = 0;
+            List<String> allItemsDropped = new ArrayList<>();
 
             System.out.println("\n🤖 挂机开始！战斗中...");
-            System.out.println("提示：挂机将持续到体力耗尽或战斗失败");
+            System.out.printf("提示：挂机将持续到体力耗尽、战斗失败或达到最大战斗轮数(%d轮)\n", maxBattles);
             System.out.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
             boolean continueAuto = true;
-            while (continueAuto) {
+            while (continueAuto && totalBattles < maxBattles) {
                 try {
                     JsonObject request = new JsonObject();
                     request.addProperty("characterId", currentCharacterId);
@@ -858,13 +954,32 @@ public class XiuxianGameClient {
                             totalExpGained += result.getExpGained();
                             totalSpiritStonesGained += result.getSpiritStonesGained();
 
-                            System.out.printf("第%d战 ✅ 胜利！经验+%d 灵石+%d | 体力:%d 气血:%d 灵力:%d\n",
+                            // 构建基本战斗信息
+                            StringBuilder battleInfo = new StringBuilder();
+                            battleInfo.append(String.format("第%d战 ✅ 胜利！经验+%d 灵石+%d",
                                     totalBattles,
                                     result.getExpGained(),
-                                    result.getSpiritStonesGained(),
+                                    result.getSpiritStonesGained()));
+
+                            // 显示装备掉落
+                            if (result.getItemsDropped() != null && !result.getItemsDropped().isEmpty()) {
+                                allItemsDropped.addAll(result.getItemsDropped());
+                                battleInfo.append(" 📦掉落: ");
+                                battleInfo.append(String.join(", ", result.getItemsDropped()));
+                            }
+
+                            battleInfo.append(String.format(" | 体力:%d 气血:%d 灵力:%d",
                                     result.getCharacterStaminaRemaining(),
                                     result.getCharacterHpRemaining(),
-                                    result.getCharacterSpiritualPowerRemaining());
+                                    result.getCharacterSpiritualPowerRemaining()));
+
+                            System.out.println(battleInfo.toString());
+
+                            // 检查是否达到最大战斗轮数
+                            if (totalBattles >= maxBattles) {
+                                System.out.printf("\n⏰ 已达到最大战斗轮数(%d轮)，挂机结束\n", maxBattles);
+                                continueAuto = false;
+                            }
                         } else {
                             defeats++;
                             System.out.printf("第%d战 ❌ 失败！剩余生命: %d\n",
@@ -896,11 +1011,22 @@ public class XiuxianGameClient {
             System.out.println("├─────────────────────────────────────┤");
             System.out.printf("│ 获得经验：  %-8d                │\n", totalExpGained);
             System.out.printf("│ 获得灵石：  %-8d                │\n", totalSpiritStonesGained);
+            System.out.printf("│ 掉落装备：  %-4d件                  │\n", allItemsDropped.size());
             System.out.println("└─────────────────────────────────────┘");
 
             if (victories > 0) {
                 double winRate = (double) victories / totalBattles * 100;
                 System.out.printf("胜率：%.1f%%\n", winRate);
+            }
+
+            // 显示所有装备掉落详情
+            if (!allItemsDropped.isEmpty()) {
+                System.out.println("\n📦 装备掉落详情：");
+                System.out.println("┌─────────────────────────────────────┐");
+                for (int i = 0; i < allItemsDropped.size(); i++) {
+                    System.out.printf("│ %2d. %-31s │\n", i + 1, allItemsDropped.get(i));
+                }
+                System.out.println("└─────────────────────────────────────┘");
             }
 
         } catch (NumberFormatException e) {
@@ -917,9 +1043,110 @@ public class XiuxianGameClient {
      */
     private static void showCombatRecords() throws IOException, InterruptedException {
         System.out.println("\n--- 战斗记录 ---");
-        String response = ApiClient.get("/combat/records?characterId=" + currentCharacterId + "&page=1&pageSize=10");
-        System.out.println("\n" + response);
-        pressEnterToContinue();
+
+        int currentPage = 1;
+        int totalPages = 1;
+
+        while (true) {
+            String response = ApiClient.get("/combat/records?characterId=" + currentCharacterId + "&page=" + currentPage);
+            JsonObject jsonObject = gson.fromJson(response, JsonObject.class);
+
+            if (jsonObject.has("code") && jsonObject.get("code").getAsInt() == 200) {
+                if (jsonObject.has("data") && jsonObject.get("data").isJsonObject()) {
+                    JsonObject data = jsonObject.get("data").getAsJsonObject();
+
+                    // 获取总数和总页数
+                    long total = data.has("total") ? data.get("total").getAsLong() : 0;
+                    int pageSize = data.has("pageSize") ? data.get("pageSize").getAsInt() : 20;
+                    totalPages = (int) Math.ceil((double) total / pageSize);
+                    if (totalPages == 0) totalPages = 1;
+
+                    // 获取当前页
+                    int current = data.has("page") ? data.get("page").getAsInt() : 1;
+
+                    if (data.has("items") && data.get("items").isJsonArray()) {
+                        JsonArray items = data.get("items").getAsJsonArray();
+
+                        // 清屏并显示标题
+                        for (int i = 0; i < 50; i++) System.out.println();
+
+                        System.out.println("╔══════════════════════════════════════════════════════════════════════╗");
+                        System.out.println("║                         战 斗 记 录                                 ║");
+                        System.out.println("╚══════════════════════════════════════════════════════════════════════╝");
+
+                        if (items.size() == 0) {
+                            System.out.println("\n暂无战斗记录！");
+                            pressEnterToContinue();
+                            return;
+                        }
+
+                        System.out.println("\n┌──────┬──────────┬──────────┬──────┬────────┬────────┬──────┬────────┐");
+                        System.out.println("│ ID   │ 妖兽ID   │ 战斗模式 │ 结果 │ 回合数 │ 造成伤害│ 经验 │ 时间   │");
+                        System.out.println("├──────┼──────────┼──────────┼──────┼────────┼────────┼──────┼────────┤");
+
+                        for (int i = 0; i < items.size(); i++) {
+                            JsonObject record = items.get(i).getAsJsonObject();
+                            int combatId = record.has("combatId") ? record.get("combatId").getAsInt() : 0;
+                            int monsterId = record.has("monsterId") ? record.get("monsterId").getAsInt() : 0;
+                            String mode = record.has("combatMode") ? record.get("combatMode").getAsString() : "未知";
+                            boolean isVictory = record.has("isVictory") && record.get("isVictory").getAsInt() == 1;
+                            int turns = record.has("turns") ? record.get("turns").getAsInt() : 0;
+                            int damage = record.has("damageDealt") ? record.get("damageDealt").getAsInt() : 0;
+                            int exp = record.has("expGained") ? record.get("expGained").getAsInt() : 0;
+                            String time = record.has("combatTime") ? record.get("combatTime").getAsString() : "";
+
+                            // 格式化时间（只显示日期时间部分）
+                            if (time.length() > 16) {
+                                time = time.substring(0, 16);
+                            }
+
+                            System.out.printf("│ %4d │ %8d │ %-8s │ %4s │ %6d │ %6d │ %4d │ %s │%n",
+                                    combatId, monsterId, mode, isVictory ? "胜利" : "失败",
+                                    turns, damage, exp, time);
+                        }
+
+                        System.out.println("└──────┴──────────┴──────────┴──────┴────────┴────────┴──────┴────────┘");
+
+                        // 显示分页信息
+                        System.out.println("\n┌────────────────────────────────────────────────────────────────────┐");
+                        System.out.printf("│  第 %d 页 / 共 %d 页    总记录数: %d                              │%n",
+                                current, totalPages, total);
+                        System.out.println("├────────────────────────────────────────────────────────────────────┤");
+                        System.out.println("│ 操作: a/A上一页 | d/D下一页 | 回车退出                          │");
+                        System.out.println("└────────────────────────────────────────────────────────────────────┘");
+                        System.out.print("\n> ");
+                    }
+                }
+            } else {
+                System.out.println("\n❌ 查询战斗记录失败！");
+                pressEnterToContinue();
+                return;
+            }
+
+            // 读取用户输入
+            String input = scanner.nextLine();
+
+            if (input.isEmpty()) {
+                // 回车键退出
+                return;
+            } else if (input.equals("a") || input.equals("A")) {
+                // 左方向键或A键 - 上一页
+                if (currentPage > 1) {
+                    currentPage--;
+                } else {
+                    System.out.println("\n已经是第一页了！");
+                    Thread.sleep(500);
+                }
+            } else if (input.equals("d") || input.equals("D")) {
+                // 右方向键或D键 - 下一页
+                if (currentPage < totalPages) {
+                    currentPage++;
+                } else {
+                    System.out.println("\n已经是最后一页了！");
+                    Thread.sleep(500);
+                }
+            }
+        }
     }
 
     /**
@@ -966,12 +1193,29 @@ public class XiuxianGameClient {
             List<PillRecipeResponse> recipes = gson.fromJson(array, listType);
 
             if (recipes != null && !recipes.isEmpty()) {
-                System.out.println("\n序号  丹方名称              成功率  需要炼丹等级");
-                System.out.println("─────────────────────────────────────────────");
+                System.out.println("\n序号  丹方名称              成功率  需要炼丹等级  需要材料");
+                System.out.println("─────────────────────────────────────────────────────────");
                 for (int i = 0; i < recipes.size(); i++) {
                     PillRecipeResponse r = recipes.get(i);
-                    System.out.printf("%-4d  %-20s  %-6d  %-8d\n",
-                            i + 1, r.getRecipeName(), r.getBaseSuccessRate(), r.getAlchemyLevelRequired());
+
+                    // 构建材料列表字符串
+                    StringBuilder materialsStr = new StringBuilder();
+                    if (r.getMaterials() != null && !r.getMaterials().isEmpty()) {
+                        for (int j = 0; j < r.getMaterials().size(); j++) {
+                            PillRecipeResponse.MaterialRequirement m = r.getMaterials().get(j);
+                            materialsStr.append(m.getMaterialName())
+                                    .append("×")
+                                    .append(m.getRequiredQuantity());
+                            if (j < r.getMaterials().size() - 1) {
+                                materialsStr.append(", ");
+                            }
+                        }
+                    } else {
+                        materialsStr.append("无");
+                    }
+
+                    System.out.printf("%-4d  %-20s  %-6d  %-12d  %s\n",
+                            i + 1, r.getRecipeName(), r.getBaseSuccessRate(), r.getAlchemyLevelRequired(), materialsStr.toString());
                 }
             } else {
                 System.out.println("\n暂无可用的丹方！");
@@ -1174,6 +1418,7 @@ public class XiuxianGameClient {
             System.out.println("│  3. 学习技能                         │");
             System.out.println("│  4. 装备技能                         │");
             System.out.println("│  5. 升级技能                         │");
+            System.out.println("│  6. 查看所有技能                     │");
             System.out.println("│  0. 返回主菜单                       │");
             System.out.println("└──────────────────────────────────────┘");
             System.out.print("\n请选择 (直接回车返回主菜单): ");
@@ -1186,6 +1431,7 @@ public class XiuxianGameClient {
                 case "3": learnSkill(); break;
                 case "4": equipSkill(); break;
                 case "5": upgradeSkill(); break;
+                case "6": showAllSkills(); break;
                 case "0": return;
                 default: System.out.println("\n无效选择！");
             }
@@ -1249,6 +1495,43 @@ public class XiuxianGameClient {
                 }
             } else {
                 System.out.println("\n暂未学习任何技能！");
+            }
+        }
+
+        pressEnterToContinue();
+    }
+
+    /**
+     * 显示所有技能
+     */
+    private static void showAllSkills() throws IOException, InterruptedException {
+        System.out.println("\n--- 所有技能列表 ---");
+
+        String response = ApiClient.get("/skill/all");
+        Type listType = new TypeToken<List<SkillResponse>>(){}.getType();
+
+        JsonObject jsonObject = gson.fromJson(response, JsonObject.class);
+        if (jsonObject.has("data") && jsonObject.get("data").isJsonArray()) {
+            JsonArray array = jsonObject.get("data").getAsJsonArray();
+            List<SkillResponse> skills = gson.fromJson(array, listType);
+
+            if (skills != null && !skills.isEmpty()) {
+                System.out.println("\n序号  技能名称              类型      元素  阶位  基础伤害  消耗灵力  描述");
+                System.out.println("──────────────────────────────────────────────────────────────────────────────────────");
+                for (int i = 0; i < skills.size(); i++) {
+                    SkillResponse s = skills.get(i);
+                    String desc = s.getDescription() != null && s.getDescription().length() > 20
+                        ? s.getDescription().substring(0, 20) + "..."
+                        : (s.getDescription() != null ? s.getDescription() : "");
+                    System.out.printf("%-4d  %-20s  %-8s  %-4s  %-4d  %-8d  %-8d  %s\n",
+                            i + 1, s.getSkillName(), s.getFunctionType(),
+                            s.getElementType(), s.getTier(),
+                            s.getBaseDamage() != null ? s.getBaseDamage() : 0,
+                            s.getSpiritualCost() != null ? s.getSpiritualCost() : 0,
+                            desc);
+                }
+            } else {
+                System.out.println("\n暂无技能数据！");
             }
         }
 
@@ -1472,7 +1755,7 @@ public class XiuxianGameClient {
             System.out.println("│  2. 查看我的宗门                     │");
             System.out.println("│  3. 加入宗门                         │");
             System.out.println("│  4. 查看宗门商店                     │");
-            System.out.println("│  5. 购买物品                         │");
+            System.out.println("│  5. 宗门任务                         │");
             System.out.println("│  0. 返回主菜单                       │");
             System.out.println("└──────────────────────────────────────┘");
             System.out.print("\n请选择 (直接回车返回主菜单): ");
@@ -1484,7 +1767,7 @@ public class XiuxianGameClient {
                 case "2": showMySect(); break;
                 case "3": joinSect(); break;
                 case "4": showSectShop(); break;
-                case "5": buyFromSectShop(); break;
+                case "5": showSectTasks(); break;
                 case "0": return;
                 default: System.out.println("\n无效选择！");
             }
@@ -1531,7 +1814,28 @@ public class XiuxianGameClient {
         System.out.println("\n--- 我的宗门 ---");
 
         String response = ApiClient.get("/sect/my/" + currentCharacterId);
-        System.out.println("\n" + response);
+
+        JsonObject jsonObject = gson.fromJson(response, JsonObject.class);
+        if (jsonObject.has("data") && jsonObject.get("data").isJsonObject()) {
+            JsonObject data = jsonObject.get("data").getAsJsonObject();
+            SectMemberResponse member = gson.fromJson(data, SectMemberResponse.class);
+
+            if (member != null) {
+                System.out.println("\n┌──────────────────────────────────────┐");
+                System.out.println("│            我的宗门信息                │");
+                System.out.println("├──────────────────────────────────────┤");
+                System.out.printf("│ 宗门名称: %-28s │\n", member.getSectName());
+                System.out.printf("│ 职位: %-32s │\n", member.getPosition());
+                System.out.printf("│ 总贡献: %-30d │\n", member.getContribution());
+                System.out.printf("│ 本周贡献: %-28d │\n", member.getWeeklyContribution());
+                System.out.printf("│ 加入时间: %-28s │\n", member.getJoinedAt());
+                System.out.println("└──────────────────────────────────────┘");
+            } else {
+                System.out.println("\n未加入任何宗门！");
+            }
+        } else {
+            System.out.println("\n未加入任何宗门！");
+        }
 
         pressEnterToContinue();
     }
@@ -1585,37 +1889,481 @@ public class XiuxianGameClient {
                             i + 1, item.getItemName(), item.getItemType(),
                             item.getPrice(), stockDisplay);
                 }
+
+                // 显示后续操作菜单
+                System.out.println("\n请选择操作：");
+                System.out.println("1. 查看物品明细");
+                System.out.println("2. 购买物品");
+                System.out.println("0. 返回");
+                System.out.print("\n请选择: ");
+
+                String choice = scanner.nextLine();
+                switch (choice) {
+                    case "1":
+                        viewSectShopItemDetail(items);
+                        break;
+                    case "2":
+                        buyFromSectShop(items);
+                        break;
+                    case "0":
+                        return;
+                    default:
+                        System.out.println("\n无效选择！");
+                }
             } else {
                 System.out.println("\n商店暂无物品！");
+                pressEnterToContinue();
             }
+        } else {
+            System.out.println("\n商店暂无物品！");
+            pressEnterToContinue();
+        }
+    }
+
+    /**
+     * 查看宗门商店物品明细
+     */
+    private static void viewSectShopItemDetail(List<SectShopItemResponse> items) throws IOException, InterruptedException {
+        System.out.print("\n请输入要查看的物品序号: ");
+        String indexStr = scanner.nextLine();
+
+        try {
+            int index = Integer.parseInt(indexStr) - 1;
+            if (index >= 0 && index < items.size()) {
+                SectShopItemResponse item = items.get(index);
+                String itemType = item.getItemType();
+
+                // 根据物品类型显示不同的标题
+                String title = getItemTypeDisplayName(itemType);
+
+                System.out.println("\n┌──────────────────────────────────────┐");
+                System.out.printf("│          %s                │\n", title);
+                System.out.println("├──────────────────────────────────────┤");
+                System.out.printf("│ 物品名称: %-28s │\n", item.getItemName());
+                System.out.printf("│ 物品类型: %-28s │\n", itemType);
+                if (item.getItemTier() != null) {
+                    System.out.printf("│ 物品阶位: %-28d │\n", item.getItemTier());
+                }
+                System.out.printf("│ 价格: %-32d │\n", item.getPrice());
+                System.out.printf("│ 库存: %-32s │\n",
+                    (item.getStock() == null ? "0" : String.valueOf(item.getStock())));
+
+                // 根据物品类型显示特有属性
+                switch (itemType) {
+                    case "skill":
+                        if (item.getBaseDamage() != null) {
+                            System.out.printf("│ 基础伤害: %-28d │\n", item.getBaseDamage());
+                        }
+                        if (item.getSpiritualCost() != null) {
+                            System.out.printf("│ 灵力消耗: %-28d │\n", item.getSpiritualCost());
+                        }
+                        if (item.getSkillType() != null) {
+                            System.out.printf("│ 技能类型: %-28s │\n", item.getSkillType());
+                        }
+                        if (item.getElementType() != null) {
+                            System.out.printf("│ 元素类型: %-28s │\n", item.getElementType());
+                        }
+                        break;
+                    case "equipment":
+                        if (item.getEquipmentSlot() != null) {
+                            System.out.printf("│ 装备部位: %-28s │\n", item.getEquipmentSlot());
+                        }
+                        if (item.getAttackBonus() != null && item.getAttackBonus() > 0) {
+                            System.out.printf("│ 攻击加成: %-28d │\n", item.getAttackBonus());
+                        }
+                        if (item.getDefenseBonus() != null && item.getDefenseBonus() > 0) {
+                            System.out.printf("│ 防御加成: %-28d │\n", item.getDefenseBonus());
+                        }
+                        if (item.getHealthBonus() != null && item.getHealthBonus() > 0) {
+                            System.out.printf("│ 生命加成: %-28d │\n", item.getHealthBonus());
+                        }
+                        break;
+                    case "pill":
+                        if (item.getHealAmount() != null && item.getHealAmount() > 0) {
+                            System.out.printf("│ 治疗量: %-30d │\n", item.getHealAmount());
+                        }
+                        if (item.getExpBonus() != null && item.getExpBonus() > 0) {
+                            System.out.printf("│ 经验加成: %-28d │\n", item.getExpBonus());
+                        }
+                        if (item.getBuffDuration() != null && item.getBuffDuration() > 0) {
+                            System.out.printf("│ Buff时长: %-27d秒│\n", item.getBuffDuration());
+                        }
+                        break;
+                    case "material":
+                        // 材料类型只显示基础信息
+                        System.out.println("│ 用途: 炼丹/锻造材料                 │");
+                        break;
+                }
+
+                // 显示描述
+                if (item.getDescription() != null && !item.getDescription().isEmpty()) {
+                    // 分行显示描述，每行最多26个字符
+                    String desc = item.getDescription();
+                    int maxLength = 26;
+                    for (int i = 0; i < desc.length(); i += maxLength) {
+                        int end = Math.min(i + maxLength, desc.length());
+                        String line = desc.substring(i, end);
+                        if (i == 0) {
+                            System.out.printf("│ 描述: %-29s │\n", line);
+                        } else {
+                            System.out.printf("│       %-29s │\n", line);
+                        }
+                    }
+                } else {
+                    System.out.printf("│ 描述: %-29s │\n", "暂无描述");
+                }
+                System.out.println("└──────────────────────────────────────┘");
+            } else {
+                System.out.println("\n❌ 无效的序号！");
+            }
+        } catch (NumberFormatException e) {
+            System.out.println("\n❌ 无效的输入！");
         }
 
         pressEnterToContinue();
     }
 
     /**
+     * 获取物品类型的显示名称
+     */
+    private static String getItemTypeDisplayName(String itemType) {
+        switch (itemType) {
+            case "skill": return "技能详细信息";
+            case "equipment": return "装备详细信息";
+            case "pill": return "丹药详细信息";
+            case "material": return "材料详细信息";
+            default: return "物品详细信息";
+        }
+    }
+
+    /**
      * 购买物品
      */
-    private static void buyFromSectShop() throws IOException, InterruptedException {
+    private static void buyFromSectShop(List<SectShopItemResponse> items) throws IOException, InterruptedException {
         System.out.println("\n--- 购买物品 ---");
-        System.out.print("请输入商店物品ID: ");
-        String shopItemIdStr = scanner.nextLine();
-        System.out.print("请输入购买数量: ");
-        String quantityStr = scanner.nextLine();
+        System.out.print("请输入要购买的物品序号: ");
+        String indexStr = scanner.nextLine();
 
         try {
-            Long shopItemId = Long.parseLong(shopItemIdStr);
-            Integer quantity = Integer.parseInt(quantityStr);
+            int index = Integer.parseInt(indexStr) - 1;
+            if (index >= 0 && index < items.size()) {
+                SectShopItemResponse item = items.get(index);
 
-            JsonObject request = new JsonObject();
-            request.addProperty("characterId", currentCharacterId);
-            request.addProperty("itemId", shopItemId);  // 修改为itemId匹配后端DTO
-            request.addProperty("quantity", quantity);
+                // 检查库存
+                if (item.getStock() != null && item.getStock() <= 0) {
+                    System.out.println("\n❌ 该物品库存不足！");
+                    pressEnterToContinue();
+                    return;
+                }
 
-            String response = ApiClient.post("/sect/shop/buy", request);
-            System.out.println("\n" + response);
+                System.out.printf("\n物品: %s\n", item.getItemName());
+                System.out.printf("价格: %d 贡献/个\n", item.getPrice());
+                System.out.print("请输入购买数量: ");
+                String quantityStr = scanner.nextLine();
+
+                try {
+                    Integer quantity = Integer.parseInt(quantityStr);
+                    if (quantity <= 0) {
+                        System.out.println("\n❌ 购买数量必须大于0！");
+                        pressEnterToContinue();
+                        return;
+                    }
+
+                    // 检查库存是否足够
+                    if (item.getStock() != null && quantity > item.getStock()) {
+                        System.out.printf("\n❌ 库存不足！当前库存: %d\n", item.getStock());
+                        pressEnterToContinue();
+                        return;
+                    }
+
+                    JsonObject request = new JsonObject();
+                    request.addProperty("characterId", currentCharacterId);
+                    request.addProperty("itemId", item.getShopItemId());
+                    request.addProperty("quantity", quantity);
+
+                    String response = ApiClient.post("/sect/shop/buy", request);
+
+                    // 解析响应
+                    JsonObject result = gson.fromJson(response, JsonObject.class);
+                    if (result.has("code") && result.get("code").getAsInt() == 200) {
+                        System.out.println("\n✅ 购买成功！");
+                    } else {
+                        System.out.println("\n❌ " + result.get("message").getAsString());
+                    }
+                } catch (NumberFormatException e) {
+                    System.out.println("\n❌ 无效的数量！");
+                }
+            } else {
+                System.out.println("\n❌ 无效的序号！");
+            }
         } catch (NumberFormatException e) {
             System.out.println("\n❌ 无效的输入！");
+        }
+
+        pressEnterToContinue();
+    }
+
+    /**
+     * 宗门任务菜单
+     */
+    private static void showSectTasks() throws IOException, InterruptedException {
+        while (true) {
+            System.out.println("\n┌──────────────────────────────────────┐");
+            System.out.println("│              宗 门 任 务              │");
+            System.out.println("├──────────────────────────────────────┤");
+            System.out.println("│  1. 查看任务列表                     │");
+            System.out.println("│  2. 接取任务                         │");
+            System.out.println("│  3. 提交任务                         │");
+            System.out.println("│  4. 领取奖励                         │");
+            System.out.println("│  0. 返回宗门菜单                     │");
+            System.out.println("└──────────────────────────────────────┘");
+            System.out.print("\n请选择: ");
+
+            String choice = readMenuChoice();
+
+            switch (choice) {
+                case "1": showTaskList(); break;
+                case "2": acceptTask(); break;
+                case "3": submitTask(); break;
+                case "4": claimTaskReward(); break;
+                case "0": return;
+                default: System.out.println("\n无效选择！");
+            }
+        }
+    }
+
+    /**
+     * 查看任务列表
+     */
+    private static void showTaskList() throws IOException, InterruptedException {
+        System.out.println("\n--- 任务列表 ---");
+
+        String response = ApiClient.get("/sect/tasks/my/" + currentCharacterId);
+        JsonObject result = gson.fromJson(response, JsonObject.class);
+
+        if (result.has("code") && result.get("code").getAsInt() == 200) {
+            DailyTaskSummaryResponse summary = gson.fromJson(result.get("data"), DailyTaskSummaryResponse.class);
+
+            System.out.printf("\n今日剩余接取次数: %d/%d\n", summary.getRemainingAccepts(), summary.getTotalDailyLimit());
+            System.out.printf("今日已完成: %d\n\n", summary.getCompletedCount());
+
+            // 显示进行中任务
+            if (summary.getInProgressTasks() != null && !summary.getInProgressTasks().isEmpty()) {
+                System.out.println("┌──────────────────────────────────────┐");
+                System.out.println("│            进行中任务                 │");
+                System.out.println("├──────────────────────────────────────┤");
+                for (TaskProgressResponse task : summary.getInProgressTasks()) {
+                    System.out.printf("│ [%d] %s\n", task.getProgressId(), task.getTaskName());
+                    System.out.printf("│     类型: %s\n", task.getTaskTypeDisplay());
+                    System.out.printf("│     进度: %s\n", task.getProgressDisplay());
+                    System.out.printf("│     状态: %s\n", task.getStatusDisplay());
+                    System.out.printf("│     奖励: %d贡献 + %d声望\n",
+                            task.getContributionReward(), task.getReputationReward());
+                    System.out.println("├──────────────────────────────────────┤");
+                }
+                System.out.println("└──────────────────────────────────────┘");
+            }
+
+            // 显示可接取任务
+            if (summary.getAvailableTasks() != null && !summary.getAvailableTasks().isEmpty()) {
+                System.out.println("\n┌──────────────────────────────────────┐");
+                System.out.println("│            可接取任务                 │");
+                System.out.println("├──────────────────────────────────────┤");
+                for (SectTaskResponse task : summary.getAvailableTasks()) {
+                    System.out.printf("│ [%d] %s", task.getTemplateId(), task.getTaskName());
+                    if (!task.getCanAccept()) {
+                        System.out.print(" (无法接取)");
+                    }
+                    System.out.println();
+                    System.out.printf("│     类型: %s\n", task.getTaskTypeDisplay());
+                    System.out.printf("│     目标: %s\n", task.getTargetDisplay());
+                    System.out.printf("│     奖励: %d贡献 + %d声望\n",
+                            task.getContributionReward(), task.getReputationReward());
+                    System.out.println("├──────────────────────────────────────┤");
+                }
+                System.out.println("└──────────────────────────────────────┘");
+            } else {
+                System.out.println("\n暂无可接取任务");
+            }
+        } else {
+            System.out.println("\n❌ " + result.get("message").getAsString());
+        }
+
+        pressEnterToContinue();
+    }
+
+    /**
+     * 接取任务
+     */
+    private static void acceptTask() throws IOException, InterruptedException {
+        System.out.println("\n--- 接取任务 ---");
+
+        // 先获取可接取任务列表
+        String response = ApiClient.get("/sect/tasks/available/" + currentCharacterId);
+        JsonObject result = gson.fromJson(response, JsonObject.class);
+
+        if (result.has("code") && result.get("code").getAsInt() == 200) {
+            Type listType = new TypeToken<List<SectTaskResponse>>(){}.getType();
+            List<SectTaskResponse> tasks = gson.fromJson(result.get("data").getAsJsonArray(), listType);
+
+            if (tasks == null || tasks.isEmpty()) {
+                System.out.println("\n暂无可接取任务");
+                pressEnterToContinue();
+                return;
+            }
+
+            System.out.println("\n可接取任务:");
+            for (SectTaskResponse task : tasks) {
+                System.out.printf("[%d] %s - %s\n", task.getTemplateId(), task.getTaskName(), task.getTargetDisplay());
+                if (!task.getCanAccept()) {
+                    System.out.println("    (无法接取：职位不足或次数限制)");
+                }
+            }
+
+            System.out.print("\n请输入要接取的任务ID: ");
+            String taskIdStr = scanner.nextLine();
+            try {
+                Long taskId = Long.parseLong(taskIdStr);
+
+                JsonObject request = new JsonObject();
+                request.addProperty("characterId", currentCharacterId);
+                request.addProperty("templateId", taskId);
+
+                String acceptResponse = ApiClient.post("/sect/tasks/accept", request);
+                JsonObject acceptResult = gson.fromJson(acceptResponse, JsonObject.class);
+
+                if (acceptResult.has("code") && acceptResult.get("code").getAsInt() == 200) {
+                    System.out.println("\n✅ 接取任务成功！");
+                } else {
+                    System.out.println("\n❌ " + acceptResult.get("message").getAsString());
+                }
+            } catch (NumberFormatException e) {
+                System.out.println("\n❌ 无效的任务ID！");
+            }
+        } else {
+            System.out.println("\n❌ " + result.get("message").getAsString());
+        }
+
+        pressEnterToContinue();
+    }
+
+    /**
+     * 提交任务
+     */
+    private static void submitTask() throws IOException, InterruptedException {
+        System.out.println("\n--- 提交任务 ---");
+
+        // 获取进行中任务
+        String response = ApiClient.get("/sect/tasks/my/" + currentCharacterId);
+        JsonObject result = gson.fromJson(response, JsonObject.class);
+
+        if (result.has("code") && result.get("code").getAsInt() == 200) {
+            DailyTaskSummaryResponse summary = gson.fromJson(result.get("data"), DailyTaskSummaryResponse.class);
+
+            if (summary.getInProgressTasks() == null || summary.getInProgressTasks().isEmpty()) {
+                System.out.println("\n暂无进行中任务");
+                pressEnterToContinue();
+                return;
+            }
+
+            System.out.println("\n进行中任务:");
+            for (TaskProgressResponse task : summary.getInProgressTasks()) {
+                if ("accepted".equals(task.getStatus()) || "completed".equals(task.getStatus())) {
+                    System.out.printf("[%d] %s - 进度: %s\n",
+                            task.getProgressId(), task.getTaskName(), task.getProgressDisplay());
+                }
+            }
+
+            System.out.print("\n请输入要提交的任务进度ID: ");
+            String progressIdStr = scanner.nextLine();
+            try {
+                Long progressId = Long.parseLong(progressIdStr);
+
+                JsonObject request = new JsonObject();
+                request.addProperty("characterId", currentCharacterId);
+                request.addProperty("progressId", progressId);
+
+                String submitResponse = ApiClient.post("/sect/tasks/submit", request);
+                JsonObject submitResult = gson.fromJson(submitResponse, JsonObject.class);
+
+                if (submitResult.has("code") && submitResult.get("code").getAsInt() == 200) {
+                    System.out.println("\n✅ 任务提交成功！可以领取奖励了");
+                } else {
+                    System.out.println("\n❌ " + submitResult.get("message").getAsString());
+                }
+            } catch (NumberFormatException e) {
+                System.out.println("\n❌ 无效的进度ID！");
+            }
+        } else {
+            System.out.println("\n❌ " + result.get("message").getAsString());
+        }
+
+        pressEnterToContinue();
+    }
+
+    /**
+     * 领取任务奖励
+     */
+    private static void claimTaskReward() throws IOException, InterruptedException {
+        System.out.println("\n--- 领取奖励 ---");
+
+        // 获取可领取奖励的任务（已完成状态）
+        String response = ApiClient.get("/sect/tasks/my/" + currentCharacterId);
+        JsonObject result = gson.fromJson(response, JsonObject.class);
+
+        if (result.has("code") && result.get("code").getAsInt() == 200) {
+            DailyTaskSummaryResponse summary = gson.fromJson(result.get("data"), DailyTaskSummaryResponse.class);
+
+            if (summary.getInProgressTasks() == null || summary.getInProgressTasks().isEmpty()) {
+                System.out.println("\n暂无任务");
+                pressEnterToContinue();
+                return;
+            }
+
+            // 筛选已完成的任务
+            List<TaskProgressResponse> completedTasks = new ArrayList<>();
+            for (TaskProgressResponse task : summary.getInProgressTasks()) {
+                if ("completed".equals(task.getStatus())) {
+                    completedTasks.add(task);
+                }
+            }
+
+            if (completedTasks.isEmpty()) {
+                System.out.println("\n暂无可领取奖励的任务");
+                pressEnterToContinue();
+                return;
+            }
+
+            System.out.println("\n可领取奖励的任务:");
+            for (TaskProgressResponse task : completedTasks) {
+                System.out.printf("[%d] %s - 奖励: %d贡献 + %d声望\n",
+                        task.getProgressId(), task.getTaskName(),
+                        task.getContributionReward(), task.getReputationReward());
+            }
+
+            System.out.print("\n请输入要领取奖励的任务进度ID: ");
+            String progressIdStr = scanner.nextLine();
+            try {
+                Long progressId = Long.parseLong(progressIdStr);
+
+                String claimResponse = ApiClient.post("/sect/tasks/claim/" + progressId, new JsonObject());
+                JsonObject claimResult = gson.fromJson(claimResponse, JsonObject.class);
+
+                if (claimResult.has("code") && claimResult.get("code").getAsInt() == 200) {
+                    // 安全地获取data字段
+                    if (claimResult.has("data") && !claimResult.get("data").isJsonNull()) {
+                        System.out.println("\n✅ " + claimResult.get("data").getAsString());
+                    } else {
+                        System.out.println("\n✅ 奖励领取成功！");
+                    }
+                } else {
+                    System.out.println("\n❌ " + claimResult.get("message").getAsString());
+                }
+            } catch (NumberFormatException e) {
+                System.out.println("\n❌ 无效的进度ID！");
+            }
+        } else {
+            System.out.println("\n❌ " + result.get("message").getAsString());
         }
 
         pressEnterToContinue();
@@ -1665,13 +2413,44 @@ public class XiuxianGameClient {
             List<EquipmentInfo> equipments = gson.fromJson(array, listType);
 
             if (equipments != null && !equipments.isEmpty()) {
-                System.out.println("\n槽位  装备名称              品质  攻击  防御");
-                System.out.println("───────────────────────────────────────────────");
                 for (EquipmentInfo e : equipments) {
                     if (e.isEquipped()) {
-                        System.out.printf("%-4s  %-20s  %-4s  %-4d  %-4d\n",
-                                e.getEquipmentSlot(), e.getEquipmentName(),
-                                e.getQuality(), e.getAttack(), e.getDefense());
+                        // 显示装备基本信息
+                        System.out.println("\n┌────────────────────────────────────────────────────────────────────┐");
+                        System.out.printf("│ 槽位: %-8s │ 装备名称: %-38s │%n", e.getEquipmentSlot(), e.getEquipmentName());
+                        System.out.printf("│ 品质: %-8s │ 基础评分: %-6d │ 强化等级: %-6d │%n",
+                                e.getQuality(),
+                                e.getBaseScore() != null ? e.getBaseScore() : 0,
+                                e.getEnhancementLevel() != null ? e.getEnhancementLevel() : 0);
+                        System.out.println("├────────────────────────────────────────────────────────────────────┤");
+
+                        // 显示基础属性
+                        System.out.println("│ 基础属性                                                              │");
+                        System.out.println("├────────────────────────────────────────────────────────────────────┤");
+
+                        String attack = e.getAttack() != null ? String.valueOf(e.getAttack()) : "-";
+                        String defense = e.getDefense() != null ? String.valueOf(e.getDefense()) : "-";
+                        String health = e.getHealthBonus() != null ? String.valueOf(e.getHealthBonus()) : "-";
+                        String crit = e.getCriticalRate() != null ? String.valueOf(e.getCriticalRate()) : "-";
+                        String speed = e.getSpeedBonus() != null ? String.valueOf(e.getSpeedBonus()) : "-";
+
+                        System.out.printf("│ 攻击力: %6s │ 防御力: %6s │ 气血: %6s │ 暴击: %6s │ 速度: %6s │%n",
+                                attack, defense, health, crit, speed);
+
+                        // 显示抗性
+                        System.out.println("├────────────────────────────────────────────────────────────────────┤");
+                        System.out.println("│ 抗性属性                                                              │");
+                        System.out.println("├────────────────────────────────────────────────────────────────────┤");
+
+                        String physical = e.getPhysicalResist() != null ? String.valueOf(e.getPhysicalResist()) : "-";
+                        String ice = e.getIceResist() != null ? String.valueOf(e.getIceResist()) : "-";
+                        String fire = e.getFireResist() != null ? String.valueOf(e.getFireResist()) : "-";
+                        String lightning = e.getLightningResist() != null ? String.valueOf(e.getLightningResist()) : "-";
+
+                        System.out.printf("│ 物理抗性: %4s │ 冰系抗性: %4s │ 火系抗性: %4s │ 电系抗性: %4s │%n",
+                                physical, ice, fire, lightning);
+
+                        System.out.println("└────────────────────────────────────────────────────────────────────┘");
                     }
                 }
             } else {
@@ -1687,28 +2466,223 @@ public class XiuxianGameClient {
      */
     private static void equipItem() throws IOException, InterruptedException {
         System.out.println("\n--- 装备物品 ---");
-        System.out.print("请输入角色装备ID: ");
-        String charEquipIdStr = scanner.nextLine();
 
+        // 定义所有槽位（9个槽位，戒指可装备2个）
+        String[] slots = {"武器", "头盔", "铠甲", "护手", "护腿", "靴子", "戒指1", "戒指2", "项链"};
+
+        // 1. 获取已装备的装备
+        System.out.println("\n正在加载装备信息...");
+        String equippedResponse = ApiClient.get("/equipment/character/" + currentCharacterId);
+        java.util.Map<String, JsonObject> equippedMap = new java.util.HashMap<>();
+
+        JsonObject equippedJson = gson.fromJson(equippedResponse, JsonObject.class);
+        if (equippedJson.has("code") && equippedJson.get("code").getAsInt() == 200) {
+            if (equippedJson.has("data") && equippedJson.get("data").isJsonArray()) {
+                JsonArray array = equippedJson.get("data").getAsJsonArray();
+                for (int i = 0; i < array.size(); i++) {
+                    JsonObject item = array.get(i).getAsJsonObject();
+                    String slot = item.has("equipmentSlot") ? item.get("equipmentSlot").getAsString() : "";
+                    equippedMap.put(slot, item);
+                }
+            }
+        }
+
+        // 2. 显示所有槽位及已装备的装备
+        System.out.println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        System.out.println("                      当前装备状态                          ");
+        System.out.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+        for (int i = 0; i < slots.length; i++) {
+            String slot = slots[i];
+            System.out.printf("%2d. %-8s: ", i + 1, slot);
+
+            if (equippedMap.containsKey(slot)) {
+                JsonObject equipped = equippedMap.get(slot);
+                String name = equipped.has("equipmentName") ? equipped.get("equipmentName").getAsString() : "未知";
+                int score = equipped.has("baseScore") ? equipped.get("baseScore").getAsInt() : 0;
+                String quality = equipped.has("quality") ? equipped.get("quality").getAsString() : "普通";
+                System.out.printf("%s (评分:%d, %s)%n", name, score, quality);
+            } else {
+                System.out.println("[空]");
+            }
+        }
+
+        System.out.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+        // 3. 获取背包中的装备
+        String inventoryResponse = ApiClient.get("/inventory/character/" + currentCharacterId + "?itemType=equipment");
+        java.util.List<JsonObject> inventoryItems = new java.util.ArrayList<>();
+
+        JsonObject inventoryJson = gson.fromJson(inventoryResponse, JsonObject.class);
+        if (inventoryJson.has("code") && inventoryJson.get("code").getAsInt() == 200) {
+            if (inventoryJson.has("data") && inventoryJson.get("data").isJsonArray()) {
+                JsonArray array = inventoryJson.get("data").getAsJsonArray();
+                for (int i = 0; i < array.size(); i++) {
+                    inventoryItems.add(array.get(i).getAsJsonObject());
+                }
+            }
+        }
+
+        if (inventoryItems.isEmpty()) {
+            System.out.println("\n背包中没有装备！");
+            pressEnterToContinue();
+            return;
+        }
+
+        // 4. 显示背包中的装备列表
+        System.out.println("\n可装备列表:");
+        System.out.println("┌──────┬──────────────────┬─────────────────────────────┬──────────┐");
+        System.out.println("│ 序号 │ 装备名称        │ 类型 | 品质 | 评分           │ 数量     │");
+        System.out.println("├──────┼──────────────────┼─────────────────────────────┼──────────┤");
+
+        for (int i = 0; i < inventoryItems.size(); i++) {
+            JsonObject item = inventoryItems.get(i);
+            int index = i + 1;
+            String name = item.has("itemName") ? item.get("itemName").getAsString() : "未知";
+            String detail = item.has("itemDetail") ? item.get("itemDetail").getAsString() : "";
+            int quantity = item.has("quantity") ? item.get("quantity").getAsInt() : 1;
+            long itemId = item.has("itemId") ? item.get("itemId").getAsLong() : 0;
+
+            // 截断过长的字符串
+            String displayName = name.length() > 16 ? name.substring(0, 14) + ".." : name;
+            String displayDetail = detail.length() > 25 ? detail.substring(0, 23) + ".." : detail;
+
+            System.out.printf("│ %4d │ %-16s │ %-25s │ %8d │ (ID:%d)%n",
+                    index, displayName, displayDetail, quantity, itemId);
+        }
+
+        System.out.println("└──────┴──────────────────┴─────────────────────────────┴──────────┘");
+
+        // 5. 选择槽位
+        System.out.print("\n请选择槽位 (1-" + slots.length + ", 直接回车返回): ");
+        String slotStr = scanner.nextLine().trim();
+
+        if (slotStr.isEmpty()) {
+            return;
+        }
+
+        int slotIndex;
         try {
-            Long charEquipId = Long.parseLong(charEquipIdStr);
-
-            JsonObject request = new JsonObject();
-            request.addProperty("characterId", currentCharacterId);
-            request.addProperty("characterEquipmentId", charEquipId);
-
-            String response = ApiClient.post("/equipment/equip", request);
-            EquipmentInfo result = ApiClient.parseResponse(response, EquipmentInfo.class);
-
-            if (result != null) {
-                System.out.println("\n✅ 装备成功！");
-                System.out.println("装备: " + result.getEquipmentName());
+            slotIndex = Integer.parseInt(slotStr) - 1;
+            if (slotIndex < 0 || slotIndex >= slots.length) {
+                System.out.println("\n❌ 无效的槽位序号！");
+                pressEnterToContinue();
+                return;
             }
         } catch (NumberFormatException e) {
-            System.out.println("\n❌ 无效的装备ID！");
+            System.out.println("\n❌ 请输入有效的数字！");
+            pressEnterToContinue();
+            return;
+        }
+
+        String selectedSlot = slots[slotIndex];
+        System.out.println("\n已选择槽位: " + selectedSlot);
+
+        // 6. 选择装备
+        System.out.print("\n请选择装备序号 (直接回车返回): ");
+        String itemStr = scanner.nextLine().trim();
+
+        if (itemStr.isEmpty()) {
+            return;
+        }
+
+        int itemIndex;
+        try {
+            itemIndex = Integer.parseInt(itemStr) - 1;
+            if (itemIndex < 0 || itemIndex >= inventoryItems.size()) {
+                System.out.println("\n❌ 无效的装备序号！");
+                pressEnterToContinue();
+                return;
+            }
+        } catch (NumberFormatException e) {
+            System.out.println("\n❌ 请输入有效的数字！");
+            pressEnterToContinue();
+            return;
+        }
+
+        JsonObject selectedItem = inventoryItems.get(itemIndex);
+        String itemName = selectedItem.has("itemName") ? selectedItem.get("itemName").getAsString() : "未知";
+        long equipmentId = selectedItem.has("itemId") ? selectedItem.get("itemId").getAsLong() : 0;
+
+        // 7. 检查装备类型是否匹配槽位
+        String detail = selectedItem.has("itemDetail") ? selectedItem.get("itemDetail").getAsString() : "";
+        String equipmentType = extractEquipmentType(detail);
+
+        if (!isSlotMatchEquipmentType(selectedSlot, equipmentType)) {
+            System.out.printf("\n❌ 装备类型不匹配！%s 不能装备到 %s 槽位%n", equipmentType, selectedSlot);
+            pressEnterToContinue();
+            return;
+        }
+
+        // 8. 显示将要被替换的装备
+        if (equippedMap.containsKey(selectedSlot)) {
+            JsonObject oldEquipment = equippedMap.get(selectedSlot);
+            String oldName = oldEquipment.has("equipmentName") ? oldEquipment.get("equipmentName").getAsString() : "未知";
+            System.out.printf("\n⚠️  槽位已有装备: %s (将被替换)%n", oldName);
+        }
+
+        // 9. 确认装备
+        System.out.printf("\n确认将 %s 装备到 %s 槽位？ (y/n): ", itemName, selectedSlot);
+        String confirm = scanner.nextLine().trim();
+
+        if (!confirm.equalsIgnoreCase("y")) {
+            System.out.println("\n已取消装备。");
+            pressEnterToContinue();
+            return;
+        }
+
+        // 10. 调用API装备
+        JsonObject request = new JsonObject();
+        request.addProperty("characterId", currentCharacterId);
+        request.addProperty("equipmentId", equipmentId);
+        request.addProperty("equipmentSlot", selectedSlot);
+
+        System.out.println("\n正在装备...");
+        String response = ApiClient.post("/equipment/equip", request);
+
+        JsonObject resultJson = gson.fromJson(response, JsonObject.class);
+        if (resultJson.has("code") && resultJson.get("code").getAsInt() == 200) {
+            System.out.println("\n✅ 装备成功！");
+            System.out.printf("已将 %s 装备到 %s 槽位%n", itemName, selectedSlot);
+        } else {
+            String errorMsg = resultJson.has("message") ? resultJson.get("message").getAsString() : "装备失败";
+            System.out.println("\n❌ " + errorMsg);
         }
 
         pressEnterToContinue();
+    }
+
+    /**
+     * 从detail字符串中提取装备类型
+     * detail格式: "武器 | 稀有 | 评分:300"
+     */
+    private static String extractEquipmentType(String detail) {
+        try {
+            if (detail.contains("|")) {
+                String type = detail.substring(0, detail.indexOf("|")).trim();
+                return type;
+            }
+        } catch (Exception e) {
+            // 解析失败
+        }
+        return "";
+    }
+
+    /**
+     * 验证装备类型与槽位是否匹配
+     */
+    private static boolean isSlotMatchEquipmentType(String slot, String equipmentType) {
+        if (equipmentType == null || equipmentType.isEmpty()) {
+            return false;
+        }
+
+        switch (slot) {
+            case "戒指1":
+            case "戒指2":
+                return "戒指".equals(equipmentType);
+            default:
+                return slot.equals(equipmentType);
+        }
     }
 
     /**
@@ -1716,12 +2690,106 @@ public class XiuxianGameClient {
      */
     private static void unequipItem() throws IOException, InterruptedException {
         System.out.println("\n--- 卸下装备 ---");
-        System.out.println("可选槽位: WEAPON, ARMOR, HELMET, BOOTS, ACCESSORY");
-        System.out.print("\n请输入槽位名称: ");
-        String slot = scanner.nextLine();
 
-        // 这里需要用DELETE请求，但Java HttpClient的DELETE不支持body，需要手动构建
-        System.out.println("\n功能已调用，槽位: " + slot);
+        // 1. 获取已装备的装备
+        System.out.println("\n正在加载装备信息...");
+        String response = ApiClient.get("/equipment/character/" + currentCharacterId);
+        Type listType = new TypeToken<List<EquipmentInfo>>(){}.getType();
+
+        JsonObject jsonObject = gson.fromJson(response, JsonObject.class);
+        if (jsonObject.has("code") && jsonObject.get("code").getAsInt() == 200) {
+            if (jsonObject.has("data") && jsonObject.get("data").isJsonArray()) {
+                JsonArray array = jsonObject.get("data").getAsJsonArray();
+                List<EquipmentInfo> equipments = gson.fromJson(array, listType);
+
+                // 过滤出已装备的物品
+                java.util.List<EquipmentInfo> equippedItems = new java.util.ArrayList<>();
+                for (EquipmentInfo e : equipments) {
+                    if (e.isEquipped()) {
+                        equippedItems.add(e);
+                    }
+                }
+
+                if (equippedItems.isEmpty()) {
+                    System.out.println("\n当前没有装备任何物品！");
+                    pressEnterToContinue();
+                    return;
+                }
+
+                // 2. 显示已装备列表
+                System.out.println("\n当前已装备的物品:");
+                System.out.println("┌──────┬──────────────────┬────────┬──────┬──────┐");
+                System.out.println("│ 序号 │ 装备名称        │ 品质   │ 攻击 │ 防御 │");
+                System.out.println("├──────┼──────────────────┼────────┼──────┼──────┤");
+
+                for (int i = 0; i < equippedItems.size(); i++) {
+                    EquipmentInfo e = equippedItems.get(i);
+                    int index = i + 1;
+                    String attack = e.getAttack() != null ? String.valueOf(e.getAttack()) : "-";
+                    String defense = e.getDefense() != null ? String.valueOf(e.getDefense()) : "-";
+
+                    System.out.printf("│ %4d │ %-16s │ %-6s │ %4s │ %4s │%n",
+                            index, e.getEquipmentName(), e.getQuality(), attack, defense);
+                }
+
+                System.out.println("└──────┴──────────────────┴────────┴──────┴──────┘");
+
+                // 3. 选择要卸下的装备
+                System.out.print("\n请输入要卸下的装备序号 (直接回车返回): ");
+                String indexStr = scanner.nextLine().trim();
+
+                if (indexStr.isEmpty()) {
+                    return;
+                }
+
+                try {
+                    int index = Integer.parseInt(indexStr) - 1;
+                    if (index < 0 || index >= equippedItems.size()) {
+                        System.out.println("\n❌ 无效的序号！");
+                        pressEnterToContinue();
+                        return;
+                    }
+
+                    EquipmentInfo selected = equippedItems.get(index);
+                    String slot = selected.getEquipmentSlot();
+                    String name = selected.getEquipmentName();
+
+                    // 4. 确认卸下
+                    System.out.printf("\n确认卸下 %s (槽位: %s)？ (y/n): ", name, slot);
+                    String confirm = scanner.nextLine().trim();
+
+                    if (!confirm.equalsIgnoreCase("y")) {
+                        System.out.println("\n已取消卸下。");
+                        pressEnterToContinue();
+                        return;
+                    }
+
+                    // 5. 调用卸下API
+                    System.out.println("\n正在卸下装备...");
+                    String queryParams = String.format("characterId=%d&equipmentSlot=%s",
+                            currentCharacterId, slot);
+                    String deleteResponse = ApiClient.delete("/equipment/unequip", queryParams);
+
+                    JsonObject deleteJson = gson.fromJson(deleteResponse, JsonObject.class);
+                    if (deleteJson.has("code") && deleteJson.get("code").getAsInt() == 200) {
+                        System.out.println("\n✅ 卸下成功！");
+                        System.out.printf("已将 %s 从 %s 槽位卸下%n", name, slot);
+                    } else {
+                        String errorMsg = deleteJson.has("message") ? deleteJson.get("message").getAsString() : "卸下失败";
+                        System.out.println("\n❌ " + errorMsg);
+                    }
+
+                } catch (NumberFormatException e) {
+                    System.out.println("\n❌ 请输入有效的数字！");
+                }
+            } else {
+                System.out.println("\n当前没有装备任何物品！");
+            }
+        } else {
+            String errorMsg = jsonObject.has("message") ? jsonObject.get("message").getAsString() : "加载失败";
+            System.out.println("\n❌ " + errorMsg);
+        }
+
         pressEnterToContinue();
     }
 
@@ -1732,7 +2800,54 @@ public class XiuxianGameClient {
         System.out.println("\n--- 装备加成 ---");
 
         String response = ApiClient.get("/equipment/bonus/" + currentCharacterId);
-        System.out.println("\n" + response);
+
+        JsonObject jsonObject = gson.fromJson(response, JsonObject.class);
+        if (jsonObject.has("code") && jsonObject.get("code").getAsInt() == 200) {
+            if (jsonObject.has("data") && jsonObject.get("data").isJsonObject()) {
+                JsonObject bonus = jsonObject.get("data").getAsJsonObject();
+
+                int attackBonus = bonus.has("attackBonus") ? bonus.get("attackBonus").getAsInt() : 0;
+                int defenseBonus = bonus.has("defenseBonus") ? bonus.get("defenseBonus").getAsInt() : 0;
+                int healthBonus = bonus.has("healthBonus") ? bonus.get("healthBonus").getAsInt() : 0;
+                int staminaBonus = bonus.has("staminaBonus") ? bonus.get("staminaBonus").getAsInt() : 0;
+                int spiritualPowerBonus = bonus.has("spiritualPowerBonus") ? bonus.get("spiritualPowerBonus").getAsInt() : 0;
+                int criticalRateBonus = bonus.has("criticalRateBonus") ? bonus.get("criticalRateBonus").getAsInt() : 0;
+                int speedBonus = bonus.has("speedBonus") ? bonus.get("speedBonus").getAsInt() : 0;
+                int physicalResistBonus = bonus.has("physicalResistBonus") ? bonus.get("physicalResistBonus").getAsInt() : 0;
+                int iceResistBonus = bonus.has("iceResistBonus") ? bonus.get("iceResistBonus").getAsInt() : 0;
+                int fireResistBonus = bonus.has("fireResistBonus") ? bonus.get("fireResistBonus").getAsInt() : 0;
+                int lightningResistBonus = bonus.has("lightningResistBonus") ? bonus.get("lightningResistBonus").getAsInt() : 0;
+
+                System.out.println("\n┌────────────────────────────────────────────────────────────────────┐");
+                System.out.println("│                      装备总加成                                   │");
+                System.out.println("├────────────────────────────────────────────────────────────────────┤");
+
+                System.out.printf("│ 攻击力加成: %6d              暴击率加成: %6d                   │%n", attackBonus, criticalRateBonus);
+                System.out.printf("│ 防御力加成: %6d              速度加成:   %6d                   │%n", defenseBonus, speedBonus);
+                System.out.printf("│ 气血加成:   %6d                                                       │%n", healthBonus);
+                System.out.printf("│ 体力加成:   %6d              灵力加成:   %6d                   │%n", staminaBonus, spiritualPowerBonus);
+
+                System.out.println("├────────────────────────────────────────────────────────────────────┤");
+                System.out.println("│                       抗性加成                                     │");
+                System.out.println("├────────────────────────────────────────────────────────────────────┤");
+                System.out.printf("│ 物理抗性: %6d              冰系抗性: %6d                   │%n", physicalResistBonus, iceResistBonus);
+                System.out.printf("│ 火系抗性: %6d              电系抗性: %6d                   │%n", fireResistBonus, lightningResistBonus);
+
+                System.out.println("└────────────────────────────────────────────────────────────────────┘");
+
+                // 如果所有加成都是0，显示提示
+                if (attackBonus == 0 && defenseBonus == 0 && healthBonus == 0
+                        && staminaBonus == 0 && spiritualPowerBonus == 0
+                        && criticalRateBonus == 0 && speedBonus == 0
+                        && physicalResistBonus == 0 && iceResistBonus == 0
+                        && fireResistBonus == 0 && lightningResistBonus == 0) {
+                    System.out.println("\n💡 提示：当前未装备任何物品，或装备未提供属性加成");
+                }
+            }
+        } else {
+            String errorMsg = jsonObject.has("message") ? jsonObject.get("message").getAsString() : "加载失败";
+            System.out.println("\n❌ " + errorMsg);
+        }
 
         pressEnterToContinue();
     }
@@ -2026,21 +3141,49 @@ public class XiuxianGameClient {
                             itemType.equals("material") ? "材料" : "丹药";
 
                     System.out.println("\n" + typeLabel + "物品 (共" + array.size() + "件):");
-                    System.out.println("────────────────────────────────────────────────────────────");
-                    System.out.printf("%-4s  %-20s  %-20s  %-6s\n", "ID", "物品名称", "详细信息", "数量");
-                    System.out.println("────────────────────────────────────────────────────────────");
+
+                    // 根据物品类型显示不同的表头
+                    boolean showEquipmentDetail = itemType == null || itemType.equals("equipment");
+                    if (showEquipmentDetail) {
+                        System.out.println("┌────┬──────────────────┬──────────────────────────────────────────────────────────────────────┬──────┐");
+                        System.out.println("│ ID │ 物品名称          │ 详细信息                                                         │ 数量 │");
+                        System.out.println("├────┼──────────────────┼──────────────────────────────────────────────────────────────────────┼──────┤");
+                    } else {
+                        System.out.println("────────────────────────────────────────────────────────────");
+                        System.out.printf("%-4s  %-20s  %-20s  %-6s\n", "ID", "物品名称", "详细信息", "数量");
+                        System.out.println("────────────────────────────────────────────────────────────");
+                    }
 
                     for (int i = 0; i < array.size(); i++) {
                         JsonObject item = array.get(i).getAsJsonObject();
                         Long id = item.has("inventoryId") ? item.get("inventoryId").getAsLong() : 0L;
                         String name = item.has("itemName") ? item.get("itemName").getAsString() : "未知";
-                        String detail = item.has("itemDetail") ? item.get("itemDetail").getAsString() : "";
+                        String type = item.has("itemType") ? item.get("itemType").getAsString() : "";
                         Integer quantity = item.has("quantity") ? item.get("quantity").getAsInt() : 0;
 
-                        System.out.printf("%-4d  %-20s  %-20s  %-6d\n",
-                                (i + 1), name, detail, quantity);
+                        if (showEquipmentDetail && "equipment".equals(type)) {
+                            // 装备类型，显示详细属性
+                            String detail = formatEquipmentDetail(item);
+                            System.out.printf("│ %2d │ %-16s │ %-64s │ %4d │%n",
+                                    (i + 1), name, detail, quantity);
+                        } else {
+                            // 非装备类型，显示简单信息
+                            String detail = item.has("itemDetail") ? item.get("itemDetail").getAsString() : "";
+                            if (showEquipmentDetail) {
+                                System.out.printf("│ %2d │ %-16s │ %-64s │ %4d │%n",
+                                        (i + 1), name, detail, quantity);
+                            } else {
+                                System.out.printf("%-4d  %-20s  %-20s  %-6d\n",
+                                        (i + 1), name, detail, quantity);
+                            }
+                        }
                     }
-                    System.out.println("────────────────────────────────────────────────────────────");
+
+                    if (showEquipmentDetail) {
+                        System.out.println("└────┴──────────────────┴──────────────────────────────────────────────────────────────────────┴──────┘");
+                    } else {
+                        System.out.println("────────────────────────────────────────────────────────────");
+                    }
                 }
             } else {
                 System.out.println("\n背包是空的！");
@@ -2153,7 +3296,58 @@ public class XiuxianGameClient {
      * 售出背包物品
      */
     private static void sellInventoryItem() throws IOException, InterruptedException {
-        System.out.println("\n--- 💰 一键售出 ---");
+        while (true) {
+            System.out.println("\n--- 💰 一键售出 ---");
+            System.out.println("1. 单件出售");
+            System.out.println("2. 批量出售（按评分筛选）");
+            System.out.println("0. 返回");
+            System.out.print("\n请选择出售方式: ");
+
+            String choice = readMenuChoice();
+            if (choice.equals("0")) {
+                return;
+            }
+
+            if (choice.equals("1")) {
+                // 单件出售
+                sellSingleItem();
+            } else if (choice.equals("2")) {
+                // 批量出售
+                sellBatchItems();
+            } else {
+                System.out.println("\n❌ 无效的选择！");
+                pressEnterToContinue();
+            }
+        }
+    }
+
+    /**
+     * 从detail字符串中提取评分
+     * detail格式: "武器 | 稀有 | 评分:300"
+     */
+    private static int extractScoreFromDetail(String detail) {
+        try {
+            if (detail.contains("评分:")) {
+                int scoreIndex = detail.indexOf("评分:");
+                String scoreStr = detail.substring(scoreIndex + 3).trim();
+                // 提取数字部分
+                scoreStr = scoreStr.replaceAll("[^0-9]", "");
+                if (!scoreStr.isEmpty()) {
+                    return Integer.parseInt(scoreStr);
+                }
+            }
+        } catch (Exception e) {
+            // 解析失败返回0
+        }
+        return 0;
+    }
+
+    /**
+     * 单件出售
+     */
+    private static void sellSingleItem() throws IOException, InterruptedException {
+        System.out.println("\n--- 单件出售 ---");
+        System.out.println("💡 提示：当前仅支持出售装备");
 
         // 先显示背包物品
         System.out.println("\n正在加载背包物品...");
@@ -2162,27 +3356,36 @@ public class XiuxianGameClient {
         JsonObject jsonObject = gson.fromJson(response, JsonObject.class);
         if (jsonObject.has("code") && jsonObject.get("code").getAsInt() == 200) {
             if (jsonObject.has("data") && jsonObject.get("data").isJsonArray()) {
-                JsonArray items = jsonObject.get("data").getAsJsonArray();
+                JsonArray allItems = jsonObject.get("data").getAsJsonArray();
 
-                if (items.size() == 0) {
-                    System.out.println("\n背包为空，没有物品可出售！");
+                // 过滤只显示装备
+                java.util.List<JsonObject> equipmentItems = new java.util.ArrayList<>();
+                for (int i = 0; i < allItems.size(); i++) {
+                    JsonObject item = allItems.get(i).getAsJsonObject();
+                    String itemType = item.has("itemType") ? item.get("itemType").getAsString() : "";
+                    if ("equipment".equals(itemType)) {
+                        equipmentItems.add(item);
+                    }
+                }
+
+                if (equipmentItems.isEmpty()) {
+                    System.out.println("\n背包中没有装备，无法出售！");
                     pressEnterToContinue();
                     return;
                 }
 
-                // 显示物品列表
-                System.out.println("\n背包物品列表:");
+                // 显示装备列表
+                System.out.println("\n可出售装备列表:");
                 System.out.println("┌──────┬──────────────────┬─────────────────────────────┬──────┬──────────┐");
                 System.out.println("│ 序号 │ 物品名称        │ 详细信息                   │ 数量 │ 单价(灵石)│");
                 System.out.println("├──────┼──────────────────┼─────────────────────────────┼──────┼──────────┤");
 
-                for (int i = 0; i < items.size(); i++) {
-                    JsonObject item = items.get(i).getAsJsonObject();
+                for (int i = 0; i < equipmentItems.size(); i++) {
+                    JsonObject item = equipmentItems.get(i).getAsJsonObject();
                     int index = i + 1;
                     String name = item.has("itemName") ? item.get("itemName").getAsString() : "未知";
                     String detail = item.has("itemDetail") ? item.get("itemDetail").getAsString() : "";
                     int quantity = item.has("quantity") ? item.get("quantity").getAsInt() : 1;
-                    long inventoryId = item.has("inventoryId") ? item.get("inventoryId").getAsLong() : 0;
                     String itemType = item.has("itemType") ? item.get("itemType").getAsString() : "";
 
                     // 计算单价
@@ -2192,14 +3395,14 @@ public class XiuxianGameClient {
                     if (name.length() > 16) name = name.substring(0, 14) + "..";
                     if (detail.length() > 25) detail = detail.substring(0, 23) + "..";
 
-                    System.out.printf("│ %4d │ %-16s │ %-25s │ %4d │ %8d │ (ID:%d)%n",
-                            index, name, detail, quantity, unitPrice, inventoryId);
+                    System.out.printf("│ %4d │ %-16s │ %-25s │ %4d │ %8d │%n",
+                            index, name, detail, quantity, unitPrice);
                 }
 
                 System.out.println("└──────┴──────────────────┴─────────────────────────────┴──────┴──────────┘");
 
                 // 输入序号
-                System.out.print("\n请输入要出售的物品序号 (直接回车返回): ");
+                System.out.print("\n请输入要出售的装备序号 (直接回车返回): ");
                 String indexStr = scanner.nextLine().trim();
 
                 // 空输入直接返回
@@ -2213,13 +3416,13 @@ public class XiuxianGameClient {
 
                 try {
                     int index = Integer.parseInt(indexStr);
-                    if (index < 1 || index > items.size()) {
+                    if (index < 1 || index > equipmentItems.size()) {
                         System.out.println("\n❌ 无效的序号！");
                         pressEnterToContinue();
                         return;
                     }
 
-                    JsonObject selectedItem = items.get(index - 1).getAsJsonObject();
+                    JsonObject selectedItem = equipmentItems.get(index - 1).getAsJsonObject();
                     long inventoryId = selectedItem.get("inventoryId").getAsLong();
                     String itemName = selectedItem.get("itemName").getAsString();
                     int maxQuantity = selectedItem.has("quantity") ? selectedItem.get("quantity").getAsInt() : 1;
@@ -2262,8 +3465,10 @@ public class XiuxianGameClient {
                     }
 
                     // 调用出售API
-                    String sellRequest = String.format("{\"characterId\":%d,\"inventoryId\":%d,\"quantity\":%d}",
-                            currentCharacterId, inventoryId, quantity);
+                    JsonObject sellRequest = new JsonObject();
+                    sellRequest.addProperty("characterId", currentCharacterId);
+                    sellRequest.addProperty("inventoryId", inventoryId);
+                    sellRequest.addProperty("quantity", quantity);
 
                     System.out.println("\n正在出售...");
                     String sellResponse = ApiClient.post("/inventory/sell", sellRequest);
@@ -2300,10 +3505,315 @@ public class XiuxianGameClient {
     }
 
     /**
+     * 批量出售（按评分筛选）
+     */
+    private static void sellBatchItems() throws IOException, InterruptedException {
+        System.out.println("\n--- 批量出售 ---");
+        System.out.println("💡 提示：将出售评分低于指定值的所有装备");
+
+        // 输入评分阈值
+        System.out.print("\n请输入评分阈值（低于此评分的装备将被出售）: ");
+        String thresholdStr = scanner.nextLine().trim();
+
+        if (thresholdStr.isEmpty()) {
+            System.out.println("\n已取消批量出售。");
+            return;
+        }
+
+        int threshold;
+        try {
+            threshold = Integer.parseInt(thresholdStr);
+            if (threshold < 0) {
+                System.out.println("\n❌ 评分不能为负数！");
+                pressEnterToContinue();
+                return;
+            }
+        } catch (NumberFormatException e) {
+            System.out.println("\n❌ 请输入有效的数字！");
+            pressEnterToContinue();
+            return;
+        }
+
+        // 加载背包物品
+        System.out.println("\n正在加载背包物品...");
+        String response = ApiClient.get("/inventory/character/" + currentCharacterId);
+
+        JsonObject jsonObject = gson.fromJson(response, JsonObject.class);
+        if (jsonObject.has("code") && jsonObject.get("code").getAsInt() == 200) {
+            if (jsonObject.has("data") && jsonObject.get("data").isJsonArray()) {
+                JsonArray allItems = jsonObject.get("data").getAsJsonArray();
+
+                // 过滤装备并按评分筛选
+                java.util.List<JsonObject> itemsToSell = new java.util.ArrayList<>();
+                for (int i = 0; i < allItems.size(); i++) {
+                    JsonObject item = allItems.get(i).getAsJsonObject();
+                    String itemType = item.has("itemType") ? item.get("itemType").getAsString() : "";
+                    if ("equipment".equals(itemType)) {
+                        String detail = item.has("itemDetail") ? item.get("itemDetail").getAsString() : "";
+                        int score = extractScoreFromDetail(detail);
+                        if (score < threshold) {
+                            itemsToSell.add(item);
+                        }
+                    }
+                }
+
+                if (itemsToSell.isEmpty()) {
+                    System.out.printf("\n没有找到评分低于 %d 的装备！%n", threshold);
+                    pressEnterToContinue();
+                    return;
+                }
+
+                // 显示待出售装备列表
+                System.out.printf("\n找到 %d 件评分低于 %d 的装备:%n", itemsToSell.size(), threshold);
+                System.out.println("┌──────┬──────────────────┬─────────────────────────────┬──────┬──────────┐");
+                System.out.println("│ 序号 │ 物品名称        │ 详细信息                   │ 数量 │ 单价(灵石)│");
+                System.out.println("├──────┼──────────────────┼─────────────────────────────┼──────┼──────────┤");
+
+                long totalStones = 0;
+                for (int i = 0; i < itemsToSell.size(); i++) {
+                    JsonObject item = itemsToSell.get(i).getAsJsonObject();
+                    int index = i + 1;
+                    String name = item.has("itemName") ? item.get("itemName").getAsString() : "未知";
+                    String detail = item.has("itemDetail") ? item.get("itemDetail").getAsString() : "";
+                    int quantity = item.has("quantity") ? item.get("quantity").getAsInt() : 1;
+                    String itemType = item.has("itemType") ? item.get("itemType").getAsString() : "";
+
+                    // 计算单价
+                    long unitPrice = calculateSellPrice(itemType, detail);
+                    long itemTotal = unitPrice * quantity;
+                    totalStones += itemTotal;
+
+                    // 截断过长的字符串
+                    String displayName = name.length() > 16 ? name.substring(0, 14) + ".." : name;
+                    String displayDetail = detail.length() > 25 ? detail.substring(0, 23) + ".." : detail;
+
+                    System.out.printf("│ %4d │ %-16s │ %-25s │ %4d │ %8d │%n",
+                            index, displayName, displayDetail, quantity, unitPrice);
+                }
+
+                System.out.println("└──────┴──────────────────┴─────────────────────────────┴──────┴──────────┘");
+                System.out.printf("\n总计将获得: %d 灵石%n", totalStones);
+
+                // 确认批量出售
+                System.out.printf("\n确认批量出售以上 %d 件装备？ (y/n): ", itemsToSell.size());
+                String confirm = scanner.nextLine().trim();
+
+                if (!confirm.equalsIgnoreCase("y")) {
+                    System.out.println("\n已取消批量出售。");
+                    pressEnterToContinue();
+                    return;
+                }
+
+                // 批量出售
+                System.out.println("\n正在批量出售...");
+                int successCount = 0;
+                int failCount = 0;
+                long actualStones = 0;
+
+                for (JsonObject item : itemsToSell) {
+                    long inventoryId = item.get("inventoryId").getAsLong();
+                    int quantity = item.has("quantity") ? item.get("quantity").getAsInt() : 1;
+
+                    JsonObject sellRequest = new JsonObject();
+                    sellRequest.addProperty("characterId", currentCharacterId);
+                    sellRequest.addProperty("inventoryId", inventoryId);
+                    sellRequest.addProperty("quantity", quantity);
+
+                    try {
+                        String sellResponse = ApiClient.post("/inventory/sell", sellRequest);
+                        JsonObject sellJson = gson.fromJson(sellResponse, JsonObject.class);
+                        if (sellJson.has("code") && sellJson.get("code").getAsInt() == 200) {
+                            if (sellJson.has("data")) {
+                                JsonObject data = sellJson.get("data").getAsJsonObject();
+                                long stones = data.has("totalSpiritStones") ? data.get("totalSpiritStones").getAsLong() : 0;
+                                actualStones += stones;
+                            }
+                            successCount++;
+                        } else {
+                            failCount++;
+                        }
+                    } catch (Exception e) {
+                        failCount++;
+                    }
+                }
+
+                // 显示结果
+                System.out.println("\n✅ 批量出售完成！");
+                System.out.printf("成功: %d 件 | 失败: %d 件%n", successCount, failCount);
+                System.out.printf("实际获得灵石: %d%n", actualStones);
+
+            } else {
+                System.out.println("\n背包为空！");
+            }
+        } else {
+            String errorMsg = jsonObject.has("message") ? jsonObject.get("message").getAsString() : "加载失败";
+            System.out.println("\n❌ " + errorMsg);
+        }
+
+        pressEnterToContinue();
+    }
+
+    /**
      * 按任意键继续
      */
     private static void pressEnterToContinue() {
         System.out.print("\n按回车键继续...");
         scanner.nextLine();
+    }
+
+    /**
+     * 格式化装备详细属性为字符串
+     */
+    private static String formatEquipmentDetail(JsonObject item) {
+        StringBuilder sb = new StringBuilder();
+
+        // 基础信息
+        String type = item.has("equipmentType") ? item.get("equipmentType").getAsString() :
+                      item.has("itemDetail") && item.get("itemDetail").getAsString().contains("|") ?
+                      item.get("itemDetail").getAsString().split("\\|")[0].trim() : "";
+        String quality = item.has("quality") ? item.get("quality").getAsString() :
+                        item.has("itemDetail") && item.get("itemDetail").getAsString().contains("|") ?
+                        item.get("itemDetail").getAsString().split("\\|")[1].trim() : "";
+        int baseScore = item.has("baseScore") && !item.get("baseScore").isJsonNull() ?
+                       item.get("baseScore").getAsInt() : 0;
+
+        // 检查是否有装备属性字段（新格式）
+        boolean hasDetailedFields = item.has("attackPower") || item.has("defensePower");
+
+        if (hasDetailedFields) {
+            // 新格式：显示详细属性
+            int attack = item.has("attackPower") && !item.get("attackPower").isJsonNull() ?
+                        item.get("attackPower").getAsInt() : 0;
+            int defense = item.has("defensePower") && !item.get("defensePower").isJsonNull() ?
+                         item.get("defensePower").getAsInt() : 0;
+            int health = item.has("healthBonus") && !item.get("healthBonus").isJsonNull() ?
+                        item.get("healthBonus").getAsInt() : 0;
+            int crit = item.has("criticalRate") && !item.get("criticalRate").isJsonNull() ?
+                      item.get("criticalRate").getAsInt() : 0;
+            int speed = item.has("speedBonus") && !item.get("speedBonus").isJsonNull() ?
+                        item.get("speedBonus").getAsInt() : 0;
+
+            sb.append(type).append("|").append(quality).append("|").append("评分:").append(baseScore).append(" ");
+
+            // 构建属性字符串
+            java.util.List<String> attrs = new java.util.ArrayList<>();
+            if (attack > 0) attrs.add("攻" + attack);
+            if (defense > 0) attrs.add("防" + defense);
+            if (health > 0) attrs.add("血" + health);
+            if (crit > 0) attrs.add("暴" + crit);
+            if (speed > 0) attrs.add("速" + speed);
+
+            if (attrs.isEmpty()) {
+                sb.append("(无属性)");
+            } else {
+                sb.append(String.join(" ", attrs));
+            }
+        } else {
+            // 旧格式：显示原始 itemDetail
+            sb.append(item.has("itemDetail") ? item.get("itemDetail").getAsString() : "");
+        }
+
+        return sb.toString();
+    }
+
+    // ==================== 会话管理 ====================
+
+    /**
+     * 保存当前登录会话到文件
+     */
+    private static void saveSession() {
+        if (currentCharacterId == null || currentCharacter == null) {
+            System.err.println("[系统] 保存会话失败: 角色信息为空");
+            return;
+        }
+
+        try {
+            System.out.println("[系统] 正在保存会话...");
+            System.out.println("[系统] 会话文件路径: " + SESSION_FILE);
+
+            JsonObject sessionData = new JsonObject();
+            sessionData.addProperty("characterId", currentCharacterId);
+            sessionData.addProperty("characterName", currentCharacter.getPlayerName());
+            sessionData.addProperty("savedAt", java.time.LocalDateTime.now().toString());
+
+            File sessionFile = new File(SESSION_FILE);
+            // 确保父目录存在
+            File parentDir = sessionFile.getParentFile();
+            if (parentDir != null && !parentDir.exists()) {
+                parentDir.mkdirs();
+                System.out.println("[系统] 创建父目录: " + parentDir.getAbsolutePath());
+            }
+
+            try (FileWriter writer = new FileWriter(sessionFile)) {
+                gson.toJson(sessionData, writer);
+            }
+
+            System.out.println("[系统] ✅ 会话已保存到: " + sessionFile.getAbsolutePath());
+            System.out.println("[系统] 下次启动将自动登录");
+        } catch (IOException e) {
+            System.err.println("[系统] ❌ 保存会话失败: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * 加载保存的会话并尝试自动登录
+     * @return true表示成功加载并自动登录，false表示没有保存的会话或加载失败
+     */
+    private static boolean loadSavedSession() {
+        File sessionFile = new File(SESSION_FILE);
+        if (!sessionFile.exists()) {
+            System.out.println("[系统] 未找到保存的会话文件: " + SESSION_FILE);
+            return false;
+        }
+
+        try {
+            String content = new String(Files.readAllBytes(Paths.get(SESSION_FILE)));
+            JsonObject sessionData = gson.fromJson(content, JsonObject.class);
+
+            if (sessionData != null && sessionData.has("characterId")) {
+                Long savedCharacterId = sessionData.get("characterId").getAsLong();
+                String characterName = sessionData.get("characterName").getAsString();
+
+                System.out.println("[系统] 发现保存的会话: " + characterName + " (ID: " + savedCharacterId + ")");
+                System.out.println("[系统] 正在验证会话...");
+
+                // 尝试从服务器获取角色信息
+                String response = ApiClient.get("/characters/" + savedCharacterId);
+                CharacterResponse character = ApiClient.parseResponse(response, CharacterResponse.class);
+
+                if (character != null) {
+                    currentCharacterId = character.getCharacterId();
+                    currentCharacter = character;
+                    System.out.println("\n[系统] ✅ 自动登录成功！欢迎回来，" + characterName + "！");
+                    pressEnterToContinue();
+                    return true;
+                } else {
+                    System.out.println("\n[系统] ⚠️ 保存的会话已失效（角色不存在），已清除旧会话");
+                    clearSession();
+                    pressEnterToContinue();
+                    return false;
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[系统] 加载会话失败: " + e.getMessage());
+            // 如果加载失败，清除损坏的会话文件
+            clearSession();
+        }
+        return false;
+    }
+
+    /**
+     * 清除保存的会话文件
+     */
+    private static void clearSession() {
+        File sessionFile = new File(SESSION_FILE);
+        if (sessionFile.exists()) {
+            if (sessionFile.delete()) {
+                System.out.println("[系统] 会话已清除");
+            } else {
+                System.err.println("[系统] 清除会话失败");
+            }
+        }
     }
 }

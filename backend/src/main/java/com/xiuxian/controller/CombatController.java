@@ -3,8 +3,10 @@ package com.xiuxian.controller;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.xiuxian.common.response.PageResult;
 import com.xiuxian.common.response.Result;
+import com.xiuxian.config.IdleCombatProperties;
 import com.xiuxian.dto.request.CombatStartRequest;
 import com.xiuxian.dto.response.CombatResponse;
+import com.xiuxian.dto.response.IdleCombatConfigResponse;
 import com.xiuxian.entity.CombatRecord;
 import com.xiuxian.entity.Monster;
 import com.xiuxian.service.CombatService;
@@ -26,9 +28,11 @@ import java.util.List;
 public class CombatController {
 
     private final CombatService combatService;
+    private final IdleCombatProperties idleCombatProperties;
 
-    public CombatController(CombatService combatService) {
+    public CombatController(CombatService combatService, IdleCombatProperties idleCombatProperties) {
         this.combatService = combatService;
+        this.idleCombatProperties = idleCombatProperties;
     }
 
     /**
@@ -59,7 +63,7 @@ public class CombatController {
     public Result<PageResult<CombatRecord>> getCombatRecords(
             @RequestParam("characterId") Long characterId,
             @RequestParam(value = "page", defaultValue = "1") int page,
-            @RequestParam(value = "pageSize", defaultValue = "10") int pageSize) {
+            @RequestParam(value = "pageSize", defaultValue = "20") int pageSize) {
 
         Page<CombatRecord> pageResult = combatService.getCombatRecords(characterId, page, pageSize);
 
@@ -71,5 +75,17 @@ public class CombatController {
         );
 
         return Result.success(result);
+    }
+
+    /**
+     * 获取挂机战斗配置
+     * GET /api/v1/combat/idle-config
+     */
+    @GetMapping("/idle-config")
+    public Result<IdleCombatConfigResponse> getIdleCombatConfig() {
+        IdleCombatConfigResponse config = new IdleCombatConfigResponse(
+                idleCombatProperties.getMaxBattles()
+        );
+        return Result.success(config);
     }
 }

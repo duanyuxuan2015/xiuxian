@@ -17,6 +17,7 @@ import com.xiuxian.mapper.CultivationRecordMapper;
 import com.xiuxian.service.CharacterService;
 import com.xiuxian.service.CultivationService;
 import com.xiuxian.service.RealmService;
+import com.xiuxian.service.SectTaskService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
@@ -49,11 +50,15 @@ public class CultivationServiceImpl extends ServiceImpl<CultivationRecordMapper,
 
     private final CharacterService characterService;
     private final RealmService realmService;
+    private final SectTaskService sectTaskService;
     private final Random random = new Random();
 
-    public CultivationServiceImpl(@Lazy CharacterService characterService, RealmService realmService) {
+    public CultivationServiceImpl(@Lazy CharacterService characterService,
+                                  RealmService realmService,
+                                  @Lazy SectTaskService sectTaskService) {
         this.characterService = characterService;
         this.realmService = realmService;
+        this.sectTaskService = sectTaskService;
     }
 
     @Override
@@ -452,14 +457,26 @@ public class CultivationServiceImpl extends ServiceImpl<CultivationRecordMapper,
         int actualSpiritualPowerRecovered = Math.min(spiritualPowerToRecover,
                 character.getSpiritualPowerMax() - character.getSpiritualPower());
 
+        // 气血恢复：恢复最大气血的30%
+        int healthToRecover = (int) (character.getHealthMax() * 0.3);
+        int actualHealthRecovered = Math.min(healthToRecover, character.getHealthMax() - character.getHealth());
+
         // 4. 更新角色状态
         character.setStamina(character.getStamina() + actualStaminaRecovered);
         character.setSpiritualPower(character.getSpiritualPower() + actualSpiritualPowerRecovered);
+        character.setHealth(character.getHealth() + actualHealthRecovered);
         characterService.updateCharacter(character);
 
         // 5. 记录操作日志
-        operationLogger.info("打坐完成: characterId={}, staminaRecovered={}, spiritualPowerRecovered={}",
-                characterId, actualStaminaRecovered, actualSpiritualPowerRecovered);
+        operationLogger.info("打坐完成: characterId={}, staminaRecovered={}, spiritualPowerRecovered={}, healthRecovered={}",
+                characterId, actualStaminaRecovered, actualSpiritualPowerRecovered, actualHealthRecovered);
+
+        // 更新宗门任务进度（修炼任务）
+        try {
+            sectTaskService.addTaskProgress(characterId, "meditation", null, 1);
+        } catch (Exception e) {
+            logger.warn("更新宗门修炼任务进度失败: {}", e.getMessage());
+        }
 
         // 6. 构建响应
         MeditationResponse response = new MeditationResponse();
@@ -471,8 +488,11 @@ public class CultivationServiceImpl extends ServiceImpl<CultivationRecordMapper,
         response.setSpiritualPowerRecovered(actualSpiritualPowerRecovered);
         response.setCurrentSpiritualPower(character.getSpiritualPower());
         response.setMaxSpiritualPower(character.getSpiritualPowerMax());
-        response.setMessage(String.format("打坐完成！恢复%d点体力，%d点灵力。",
-                actualStaminaRecovered, actualSpiritualPowerRecovered));
+        response.setHealthRecovered(actualHealthRecovered);
+        response.setCurrentHealth(character.getHealth());
+        response.setMaxHealth(character.getHealthMax());
+        response.setMessage(String.format("打坐完成！恢复%d点气血，%d点体力，%d点灵力。",
+                actualHealthRecovered, actualStaminaRecovered, actualSpiritualPowerRecovered));
 
         return response;
     }

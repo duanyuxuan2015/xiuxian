@@ -563,6 +563,223 @@ public class CultivationServiceImplTest {
         assertTrue(exception.getMessage().contains("修炼中"));
     }
 
+    // ==================== 打坐气血恢复测试 ====================
+
+    @Test
+    void meditation_WithHealthRecovery_Success() {
+        // 准备测试数据：测试气血恢复功能
+        character.setHealth(50); // 当前气血50/100
+        character.setHealthMax(100);
+        character.setStamina(60);
+        character.setStaminaMax(100);
+        character.setSpiritualPower(40);
+        character.setSpiritualPowerMax(100);
+        character.setCurrentState("闲置");
+
+        when(characterService.getById(1L)).thenReturn(character);
+
+        // 执行打坐
+        MeditationRequest request = new MeditationRequest();
+        request.setCharacterId(1L);
+        MeditationResponse response = cultivationService.meditation(request);
+
+        // 验证气血恢复
+        assertNotNull(response);
+        assertEquals(30, response.getHealthRecovered()); // 100 * 0.3 = 30
+        assertEquals(80, response.getCurrentHealth()); // 50 + 30 = 80
+        assertEquals(100, response.getMaxHealth());
+
+        // 验证体力恢复
+        assertEquals(30, response.getStaminaRecovered());
+        assertEquals(90, response.getCurrentStamina());
+
+        // 验证灵力恢复
+        assertEquals(30, response.getSpiritualPowerRecovered());
+        assertEquals(70, response.getCurrentSpiritualPower());
+
+        // 验证消息包含气血恢复信息
+        assertTrue(response.getMessage().contains("气血"));
+        assertTrue(response.getMessage().contains("体力"));
+        assertTrue(response.getMessage().contains("灵力"));
+    }
+
+    @Test
+    void meditation_WithHealthRecovery_PartialRecovery() {
+        // 准备测试数据：气血接近满值，只能部分恢复
+        character.setHealth(95); // 当前气血95/100，只能恢复5
+        character.setHealthMax(100);
+        character.setStamina(85);
+        character.setStaminaMax(100);
+        character.setSpiritualPower(92);
+        character.setSpiritualPowerMax(100);
+        character.setCurrentState("闲置");
+
+        when(characterService.getById(1L)).thenReturn(character);
+
+        // 执行打坐
+        MeditationRequest request = new MeditationRequest();
+        request.setCharacterId(1L);
+        MeditationResponse response = cultivationService.meditation(request);
+
+        // 验证气血部分恢复
+        assertEquals(5, response.getHealthRecovered()); // 只能恢复5到达上限
+        assertEquals(100, response.getCurrentHealth()); // 达到上限
+        assertEquals(100, response.getMaxHealth());
+
+        // 验证体力部分恢复
+        assertEquals(15, response.getStaminaRecovered());
+        assertEquals(100, response.getCurrentStamina());
+
+        // 验证灵力部分恢复
+        assertEquals(8, response.getSpiritualPowerRecovered());
+        assertEquals(100, response.getCurrentSpiritualPower());
+    }
+
+    @Test
+    void meditation_WithHealthRecovery_FullHealth() {
+        // 准备测试数据：气血已满
+        character.setHealth(100); // 气血已满
+        character.setHealthMax(100);
+        character.setStamina(50);
+        character.setStaminaMax(100);
+        character.setSpiritualPower(60);
+        character.setSpiritualPowerMax(100);
+        character.setCurrentState("闲置");
+
+        when(characterService.getById(1L)).thenReturn(character);
+
+        // 执行打坐
+        MeditationRequest request = new MeditationRequest();
+        request.setCharacterId(1L);
+        MeditationResponse response = cultivationService.meditation(request);
+
+        // 验证气血不需要恢复
+        assertEquals(0, response.getHealthRecovered());
+        assertEquals(100, response.getCurrentHealth());
+
+        // 验证体力和灵力正常恢复
+        assertEquals(30, response.getStaminaRecovered());
+        assertEquals(30, response.getSpiritualPowerRecovered());
+    }
+
+    @Test
+    void meditation_RecoverAllThreeAttributes() {
+        // 准备测试数据：测试同时恢复气血、体力、灵力
+        character.setHealth(10); // 气血很低
+        character.setHealthMax(100);
+        character.setStamina(20); // 体力很低
+        character.setStaminaMax(100);
+        character.setSpiritualPower(15); // 灵力很低
+        character.setSpiritualPowerMax(100);
+        character.setCurrentState("闲置");
+
+        when(characterService.getById(1L)).thenReturn(character);
+
+        // 执行打坐
+        MeditationRequest request = new MeditationRequest();
+        request.setCharacterId(1L);
+        MeditationResponse response = cultivationService.meditation(request);
+
+        // 验证三项都恢复了30%
+        assertEquals(30, response.getHealthRecovered());
+        assertEquals(40, response.getCurrentHealth()); // 10 + 30 = 40
+
+        assertEquals(30, response.getStaminaRecovered());
+        assertEquals(50, response.getCurrentStamina()); // 20 + 30 = 50
+
+        assertEquals(30, response.getSpiritualPowerRecovered());
+        assertEquals(45, response.getCurrentSpiritualPower()); // 15 + 30 = 45
+
+        // 验证消息包含所有三项
+        assertNotNull(response.getMessage());
+        assertTrue(response.getMessage().contains("气血"));
+        assertTrue(response.getMessage().contains("体力"));
+        assertTrue(response.getMessage().contains("灵力"));
+    }
+
+    @Test
+    void meditation_WithHealthRecovery_LowHealth() {
+        // 准备测试数据：气血非常低（模拟战斗后的情况）
+        character.setHealth(5); // 气血只剩5
+        character.setHealthMax(100);
+        character.setStamina(100);
+        character.setStaminaMax(100);
+        character.setSpiritualPower(100);
+        character.setSpiritualPowerMax(100);
+        character.setCurrentState("闲置");
+
+        when(characterService.getById(1L)).thenReturn(character);
+
+        // 执行打坐
+        MeditationRequest request = new MeditationRequest();
+        request.setCharacterId(1L);
+        MeditationResponse response = cultivationService.meditation(request);
+
+        // 验证气血恢复
+        assertEquals(30, response.getHealthRecovered());
+        assertEquals(35, response.getCurrentHealth()); // 5 + 30 = 35
+
+        // 验证体力和灵力已满，不需要恢复
+        assertEquals(0, response.getStaminaRecovered());
+        assertEquals(0, response.getSpiritualPowerRecovered());
+    }
+
+    @Test
+    void meditation_WithHealthRecovery_DifferentMaxValues() {
+        // 准备测试数据：测试不同的最大值（高境界角色）
+        character.setHealth(100); // 当前气血100/200
+        character.setHealthMax(200); // 更高的气血上限
+        character.setStamina(80);
+        character.setStaminaMax(150); // 更高的体力上限
+        character.setSpiritualPower(120);
+        character.setSpiritualPowerMax(180); // 更高的灵力上限
+        character.setCurrentState("闲置");
+
+        when(characterService.getById(1L)).thenReturn(character);
+
+        // 执行打坐
+        MeditationRequest request = new MeditationRequest();
+        request.setCharacterId(1L);
+        MeditationResponse response = cultivationService.meditation(request);
+
+        // 验证按最大值的30%恢复
+        assertEquals(60, response.getHealthRecovered()); // 200 * 0.3 = 60
+        assertEquals(160, response.getCurrentHealth()); // 100 + 60 = 160
+
+        assertEquals(45, response.getStaminaRecovered()); // 150 * 0.3 = 45
+        assertEquals(125, response.getCurrentStamina()); // 80 + 45 = 125
+
+        assertEquals(54, response.getSpiritualPowerRecovered()); // 180 * 0.3 = 54
+        assertEquals(174, response.getCurrentSpiritualPower()); // 120 + 54 = 174
+    }
+
+    @Test
+    void meditation_VerifyCharacterStateUpdated() {
+        // 准备测试数据
+        character.setHealth(50);
+        character.setHealthMax(100);
+        character.setStamina(50);
+        character.setStaminaMax(100);
+        character.setSpiritualPower(50);
+        character.setSpiritualPowerMax(100);
+        character.setCurrentState("闲置");
+
+        when(characterService.getById(1L)).thenReturn(character);
+
+        // 执行打坐
+        MeditationRequest request = new MeditationRequest();
+        request.setCharacterId(1L);
+        cultivationService.meditation(request);
+
+        // 验证角色对象的状态已更新
+        assertEquals(80, character.getHealth()); // 50 + 30 = 80
+        assertEquals(80, character.getStamina());
+        assertEquals(80, character.getSpiritualPower());
+
+        // 验证调用了更新方法
+        verify(characterService, times(1)).updateCharacter(character);
+    }
+
     // ==================== 境界升级功能测试 ====================
 
     @Test

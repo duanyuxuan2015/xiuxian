@@ -19,6 +19,7 @@ import com.xiuxian.service.MonsterService;
 import com.xiuxian.service.RealmService;
 import com.xiuxian.service.MonsterDropService;
 import com.xiuxian.service.InventoryService;
+import com.xiuxian.service.SectTaskService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
@@ -48,17 +49,20 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
     private final MonsterDropService monsterDropService;
     private final InventoryService inventoryService;
     private final EquipmentMapper equipmentMapper;
+    private final SectTaskService sectTaskService;
     private final Random random = new Random();
 
     public CombatServiceImpl(@Lazy CharacterService characterService, MonsterService monsterService,
                              RealmService realmService, MonsterDropService monsterDropService,
-                             InventoryService inventoryService, EquipmentMapper equipmentMapper) {
+                             InventoryService inventoryService, EquipmentMapper equipmentMapper,
+                             @Lazy SectTaskService sectTaskService) {
         this.characterService = characterService;
         this.monsterService = monsterService;
         this.realmService = realmService;
         this.monsterDropService = monsterDropService;
         this.inventoryService = inventoryService;
         this.equipmentMapper = equipmentMapper;
+        this.sectTaskService = sectTaskService;
     }
 
     @Override
@@ -130,6 +134,17 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
                 }
             }
         }
+
+        // 更新宗门任务进度（战斗任务）
+        if (result.victory) {
+            try {
+                sectTaskService.addTaskProgress(characterId, "combat",
+                        String.valueOf(monster.getRealmId()), 1);
+            } catch (Exception e) {
+                logger.warn("更新宗门战斗任务进度失败: {}", e.getMessage());
+            }
+        }
+
         characterService.updateCharacter(character);
 
         // 9. 创建战斗记录

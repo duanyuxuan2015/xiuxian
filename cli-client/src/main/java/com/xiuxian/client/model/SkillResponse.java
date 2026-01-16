@@ -16,6 +16,8 @@ public class SkillResponse {
     private boolean isEquipped;
     private Integer slotIndex;
     private String description;
+    private Integer baseDamage;
+    private Integer spiritualCost;
 
     public Long getCharacterSkillId() { return characterSkillId; }
     public Long getSkillId() { return skillId; }
@@ -29,6 +31,8 @@ public class SkillResponse {
     public boolean isEquipped() { return isEquipped; }
     public Integer getSlotIndex() { return slotIndex; }
     public String getDescription() { return description; }
+    public Integer getBaseDamage() { return baseDamage; }
+    public Integer getSpiritualCost() { return spiritualCost; }
 
     public void setCharacterSkillId(Long characterSkillId) { this.characterSkillId = characterSkillId; }
     public void setSkillId(Long skillId) { this.skillId = skillId; }
@@ -42,4 +46,6 @@ public class SkillResponse {
     public void setEquipped(boolean equipped) { isEquipped = equipped; }
     public void setSlotIndex(Integer slotIndex) { this.slotIndex = slotIndex; }
     public void setDescription(String description) { this.description = description; }
+    public void setBaseDamage(Integer baseDamage) { this.baseDamage = baseDamage; }
+    public void setSpiritualCost(Integer spiritualCost) { this.spiritualCost = spiritualCost; }
 }

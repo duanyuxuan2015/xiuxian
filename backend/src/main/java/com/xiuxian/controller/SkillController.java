@@ -41,6 +41,16 @@ public class SkillController {
     }
 
     /**
+     * 获取所有技能列表
+     * GET /api/v1/skill/all
+     */
+    @GetMapping("/all")
+    public Result<List<SkillResponse>> getAllSkills() {
+        List<SkillResponse> skills = skillService.getAllSkills();
+        return Result.success(skills);
+    }
+
+    /**
      * 获取已学习的技能列表
      * GET /api/v1/skill/learned/{characterId}
      */

@@ -12,6 +12,9 @@ public class MeditationResponse {
     private Integer spiritualPowerRecovered;
     private Integer currentSpiritualPower;
     private Integer maxSpiritualPower;
+    private Integer healthRecovered;
+    private Integer currentHealth;
+    private Integer maxHealth;
     private String message;
 
     // Getters
@@ -23,6 +26,9 @@ public class MeditationResponse {
     public Integer getSpiritualPowerRecovered() { return spiritualPowerRecovered; }
     public Integer getCurrentSpiritualPower() { return currentSpiritualPower; }
     public Integer getMaxSpiritualPower() { return maxSpiritualPower; }
+    public Integer getHealthRecovered() { return healthRecovered; }
+    public Integer getCurrentHealth() { return currentHealth; }
+    public Integer getMaxHealth() { return maxHealth; }
     public String getMessage() { return message; }
 
     // Setters
@@ -34,5 +40,8 @@ public class MeditationResponse {
     public void setSpiritualPowerRecovered(Integer spiritualPowerRecovered) { this.spiritualPowerRecovered = spiritualPowerRecovered; }
     public void setCurrentSpiritualPower(Integer currentSpiritualPower) { this.currentSpiritualPower = currentSpiritualPower; }
     public void setMaxSpiritualPower(Integer maxSpiritualPower) { this.maxSpiritualPower = maxSpiritualPower; }
+    public void setHealthRecovered(Integer healthRecovered) { this.healthRecovered = healthRecovered; }
+    public void setCurrentHealth(Integer currentHealth) { this.currentHealth = currentHealth; }
+    public void setMaxHealth(Integer maxHealth) { this.maxHealth = maxHealth; }
     public void setMessage(String message) { this.message = message; }
 }

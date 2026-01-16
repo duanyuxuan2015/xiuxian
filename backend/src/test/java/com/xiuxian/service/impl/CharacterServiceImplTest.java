@@ -10,6 +10,7 @@ import com.xiuxian.dto.response.CharacterResponse;
 import com.xiuxian.entity.PlayerCharacter;
 import com.xiuxian.entity.Realm;
 import com.xiuxian.mapper.CharacterMapper;
+import com.xiuxian.service.EquipmentService;
 import com.xiuxian.service.RealmService;
 import com.xiuxian.service.SectService;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,6 +41,8 @@ public class CharacterServiceImplTest {
     private SectService sectService;
     @Mock
     private AttributeProperties attributeProperties;
+    @Mock
+    private EquipmentService equipmentService;
 
     @InjectMocks
     private CharacterServiceImpl characterService;
@@ -241,6 +244,12 @@ public class CharacterServiceImplTest {
         when(characterMapper.selectById(1L)).thenReturn(character);
         when(realmService.getById(1)).thenReturn(realm);
 
+        // Mock equipment bonus
+        EquipmentService.EquipmentBonus bonus = new EquipmentService.EquipmentBonus();
+        bonus.attackBonus = 0;
+        bonus.defenseBonus = 0;
+        when(equipmentService.calculateEquipmentBonus(anyLong())).thenReturn(bonus);
+
         CharacterResponse response = characterService.getCharacterById(1L);
 
         assertNotNull(response);
@@ -284,6 +293,12 @@ public class CharacterServiceImplTest {
 
         when(characterMapper.selectById(1L)).thenReturn(character);
         when(realmService.getById(2)).thenReturn(realm);
+
+        // Mock equipment bonus
+        EquipmentService.EquipmentBonus bonus = new EquipmentService.EquipmentBonus();
+        bonus.attackBonus = 0;
+        bonus.defenseBonus = 0;
+        when(equipmentService.calculateEquipmentBonus(anyLong())).thenReturn(bonus);
 
         CharacterResponse response = characterService.getCharacterById(1L);
 

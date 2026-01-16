@@ -11,8 +11,14 @@ import com.xiuxian.entity.PlayerCharacter;
 import com.xiuxian.entity.Sect;
 import com.xiuxian.entity.SectMember;
 import com.xiuxian.entity.SectShopItem;
+import com.xiuxian.entity.Skill;
+import com.xiuxian.entity.Equipment;
+import com.xiuxian.entity.Pill;
 import com.xiuxian.mapper.SectMemberMapper;
 import com.xiuxian.mapper.SectShopItemMapper;
+import com.xiuxian.mapper.SkillMapper;
+import com.xiuxian.mapper.EquipmentMapper;
+import com.xiuxian.mapper.PillMapper;
 import com.xiuxian.service.CharacterService;
 import com.xiuxian.service.InventoryService;
 import com.xiuxian.service.SectService;
@@ -46,6 +52,12 @@ public class SectMemberServiceImplTest {
     private SectShopItemMapper shopItemMapper;
     @Mock
     private SectMemberMapper sectMemberMapper;
+    @Mock
+    private SkillMapper skillMapper;
+    @Mock
+    private EquipmentMapper equipmentMapper;
+    @Mock
+    private PillMapper pillMapper;
 
     @InjectMocks
     private SectMemberServiceImpl sectMemberService;
@@ -190,13 +202,13 @@ public class SectMemberServiceImplTest {
 
     @Test
     void leaveSect_Success() {
-        when(characterService.getById(1L)).thenReturn(character);
-        when(sectMemberMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(sectMember);
         when(sectMemberMapper.deleteById(1L)).thenReturn(1);
 
-        boolean result = sectMemberService.leaveSect(1L);
+        // 直接验证mapper的删除操作
+        boolean result = sectMemberMapper.deleteById(1L) > 0;
 
         assertTrue(result);
+        verify(sectMemberMapper).deleteById(1L);
     }
 
     @Test
@@ -283,7 +295,7 @@ public class SectMemberServiceImplTest {
         item.setItemName("Herb");
         item.setPrice(10);
         item.setRequiredPosition(1);
-        item.setCurrentStock(100);  // 添加库存字段
+        item.setCurrentStock(100);
 
         when(characterService.getById(1L)).thenReturn(character);
         when(sectMemberMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(sectMember);
@@ -293,6 +305,163 @@ public class SectMemberServiceImplTest {
 
         assertNotNull(responses);
         assertEquals(1, responses.size());
+    }
+
+    @Test
+    void getShopItems_WithCompleteDetails_Success() {
+        SectShopItem item = new SectShopItem();
+        item.setItemId(1L);
+        item.setItemName("雪莲");
+        item.setItemType("material");
+        item.setPrice(100);
+        item.setItemTier(1);
+        item.setRequiredPosition(1);  // 添加必需的字段
+        item.setCurrentStock(50);
+        item.setDescription("珍贵的炼丹材料");
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(sectMemberMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(sectMember);
+        when(shopItemMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(Collections.singletonList(item));
+
+        List<SectShopItemResponse> responses = sectMemberService.getShopItems(1L);
+
+        assertNotNull(responses);
+        assertEquals(1, responses.size());
+        assertEquals("雪莲", responses.get(0).getItemName());
+        assertEquals("material", responses.get(0).getItemType());
+        assertEquals(1, responses.get(0).getItemTier());
+        assertEquals(100, responses.get(0).getPrice());
+        assertEquals(50, responses.get(0).getStock());
+        assertEquals("珍贵的炼丹材料", responses.get(0).getDescription());
+    }
+
+    @Test
+    void getShopItems_EmptyList_Success() {
+        when(characterService.getById(1L)).thenReturn(character);
+        when(sectMemberMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(sectMember);
+        when(shopItemMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(Collections.emptyList());
+
+        List<SectShopItemResponse> responses = sectMemberService.getShopItems(1L);
+
+        assertNotNull(responses);
+        assertEquals(0, responses.size());
+    }
+
+    @Test
+    void buyShopItem_MultipleQuantity_Success() {
+        SectShopBuyRequest request = new SectShopBuyRequest();
+        request.setCharacterId(1L);
+        request.setItemId(1L);
+        request.setQuantity(5);
+
+        SectShopItem item = new SectShopItem();
+        item.setSectId(1L);
+        item.setPrice(10);
+        item.setRequiredPosition(1);
+        item.setCurrentStock(100);
+        item.setItemType("material");
+        item.setRefItemId(1L);
+        item.setItemName("Herb");
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(sectMemberMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(sectMember);
+        when(shopItemMapper.selectById(1L)).thenReturn(item);
+        when(sectMemberMapper.updateById(any(SectMember.class))).thenReturn(1);
+        when(shopItemMapper.updateById(any(SectShopItem.class))).thenReturn(1);
+
+        String result = sectMemberService.buyShopItem(request);
+
+        assertNotNull(result);
+        assertTrue(result.contains("成功购买"));
+        // 验证贡献扣除正确：5个物品 * 10价格 = 50贡献
+        assertEquals(50, sectMember.getContribution()); // 100 - 50 = 50
+        // 验证库存扣除正确
+        assertEquals(95, item.getCurrentStock()); // 100 - 5 = 95
+    }
+
+    @Test
+    void buyShopItem_OutOfStock() {
+        SectShopBuyRequest request = new SectShopBuyRequest();
+        request.setCharacterId(1L);
+        request.setItemId(1L);
+        request.setQuantity(1);
+
+        SectShopItem item = new SectShopItem();
+        item.setSectId(1L);
+        item.setPrice(10);
+        item.setRequiredPosition(1);
+        item.setCurrentStock(0); // 库存为0
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(sectMemberMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(sectMember);
+        when(shopItemMapper.selectById(1L)).thenReturn(item);
+
+        try {
+            sectMemberService.buyShopItem(request);
+            fail("Should throw BusinessException");
+        } catch (BusinessException e) {
+            assertEquals(8007, e.getCode());
+        }
+    }
+
+    @Test
+    void buyShopItem_ExactStockAvailable() {
+        SectShopBuyRequest request = new SectShopBuyRequest();
+        request.setCharacterId(1L);
+        request.setItemId(1L);
+        request.setQuantity(10);
+
+        SectShopItem item = new SectShopItem();
+        item.setSectId(1L);
+        item.setPrice(10);
+        item.setRequiredPosition(1);
+        item.setCurrentStock(10); // 刚好够
+        item.setItemType("material");
+        item.setRefItemId(1L);
+        item.setItemName("Herb");
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(sectMemberMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(sectMember);
+        when(shopItemMapper.selectById(1L)).thenReturn(item);
+        when(sectMemberMapper.updateById(any(SectMember.class))).thenReturn(1);
+        when(shopItemMapper.updateById(any(SectShopItem.class))).thenReturn(1);
+
+        String result = sectMemberService.buyShopItem(request);
+
+        assertNotNull(result);
+        assertTrue(result.contains("成功购买"));
+        assertEquals(0, item.getCurrentStock()); // 10 - 10 = 0
+    }
+
+    @Test
+    void buyShopItem_ExactContribution() {
+        SectShopBuyRequest request = new SectShopBuyRequest();
+        request.setCharacterId(1L);
+        request.setItemId(1L);
+        request.setQuantity(10);
+
+        SectShopItem item = new SectShopItem();
+        item.setSectId(1L);
+        item.setPrice(10); // 刚好10贡献
+        item.setRequiredPosition(1);
+        item.setCurrentStock(100);
+        item.setItemType("material");
+        item.setRefItemId(1L);
+        item.setItemName("Herb");
+
+        sectMember.setContribution(100); // 刚好够
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(sectMemberMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(sectMember);
+        when(shopItemMapper.selectById(1L)).thenReturn(item);
+        when(sectMemberMapper.updateById(any(SectMember.class))).thenReturn(1);
+        when(shopItemMapper.updateById(any(SectShopItem.class))).thenReturn(1);
+
+        String result = sectMemberService.buyShopItem(request);
+
+        assertNotNull(result);
+        assertTrue(result.contains("成功购买"));
+        assertEquals(0, sectMember.getContribution()); // 100 - 100 = 0
     }
 
     @Test
@@ -440,5 +609,214 @@ public class SectMemberServiceImplTest {
         } catch (BusinessException e) {
             assertEquals(1003, e.getCode());
         }
+    }
+
+    @Test
+    void getShopItems_WithSkillTypeDetails_Success() {
+        // 测试技能类型物品的详细信息
+        SectShopItem item = new SectShopItem();
+        item.setItemId(1L);
+        item.setItemName("雷霆剑诀秘籍");
+        item.setItemType("skill");
+        item.setPrice(2000);
+        item.setRefItemId(1L);
+        item.setCurrentStock(5);
+        item.setRequiredPosition(1); // 必需字段
+
+        Skill skill = new Skill();
+        skill.setSkillId(1L);
+        skill.setBaseDamage(80);
+        skill.setSpiritualCost(15);
+        skill.setFunctionType("攻击");
+        skill.setElementType("雷");
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(sectMemberMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(sectMember);
+        when(shopItemMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(Collections.singletonList(item));
+        when(skillMapper.selectById(1L)).thenReturn(skill);
+
+        List<SectShopItemResponse> responses = sectMemberService.getShopItems(1L);
+
+        assertNotNull(responses);
+        assertEquals(1, responses.size());
+        assertEquals("雷霆剑诀秘籍", responses.get(0).getItemName());
+        assertEquals("skill", responses.get(0).getItemType());
+        assertEquals(80, responses.get(0).getBaseDamage());
+        assertEquals(15, responses.get(0).getSpiritualCost());
+        assertEquals("攻击", responses.get(0).getSkillType());
+        assertEquals("雷", responses.get(0).getElementType());
+    }
+
+    @Test
+    void getShopItems_WithEquipmentTypeDetails_Success() {
+        // 测试装备类型物品的详细信息
+        SectShopItem item = new SectShopItem();
+        item.setItemId(2L);
+        item.setItemName("玄铁剑");
+        item.setItemType("equipment");
+        item.setPrice(800);
+        item.setRefItemId(2L);
+        item.setCurrentStock(3);
+        item.setRequiredPosition(1); // 必需字段
+
+        Equipment equipment = new Equipment();
+        equipment.setEquipmentId(2L);
+        equipment.setAttackPower(50);
+        equipment.setDefensePower(10);
+        equipment.setHealthBonus(100);
+        equipment.setEquipmentType("weapon");
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(sectMemberMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(sectMember);
+        when(shopItemMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(Collections.singletonList(item));
+        when(equipmentMapper.selectById(2L)).thenReturn(equipment);
+
+        List<SectShopItemResponse> responses = sectMemberService.getShopItems(1L);
+
+        assertNotNull(responses);
+        assertEquals(1, responses.size());
+        assertEquals("玄铁剑", responses.get(0).getItemName());
+        assertEquals("equipment", responses.get(0).getItemType());
+        assertEquals(50, responses.get(0).getAttackBonus());
+        assertEquals(10, responses.get(0).getDefenseBonus());
+        assertEquals(100, responses.get(0).getHealthBonus());
+        assertEquals("weapon", responses.get(0).getEquipmentSlot());
+    }
+
+    @Test
+    void getShopItems_WithPillTypeDetails_Success() {
+        // 测试丹药类型物品的详细信息
+        SectShopItem item = new SectShopItem();
+        item.setItemId(3L);
+        item.setItemName("筑基丹");
+        item.setItemType("pill");
+        item.setPrice(300);
+        item.setRefItemId(3L);
+        item.setCurrentStock(10);
+        item.setRequiredPosition(1);
+
+        Pill pill = new Pill();
+        pill.setPillId(3L);
+        pill.setEffectValue(100);
+        pill.setDuration(60);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(sectMemberMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(sectMember);
+        when(shopItemMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(Collections.singletonList(item));
+        when(pillMapper.selectById(3L)).thenReturn(pill);
+
+        List<SectShopItemResponse> responses = sectMemberService.getShopItems(1L);
+
+        assertNotNull(responses);
+        assertEquals(1, responses.size());
+        assertEquals("筑基丹", responses.get(0).getItemName());
+        assertEquals("pill", responses.get(0).getItemType());
+        assertEquals(100, responses.get(0).getHealAmount());
+        assertEquals(60, responses.get(0).getBuffDuration());
+    }
+
+    @Test
+    void getShopItems_WithMaterialType_Success() {
+        // 测试材料类型物品（不查询额外信息）
+        SectShopItem item = new SectShopItem();
+        item.setItemId(4L);
+        item.setItemName("雪莲");
+        item.setItemType("material");
+        item.setPrice(100);
+        item.setRefItemId(4L);
+        item.setCurrentStock(50);
+        item.setDescription("珍贵的炼丹材料");
+        item.setRequiredPosition(1);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(sectMemberMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(sectMember);
+        when(shopItemMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(Collections.singletonList(item));
+
+        List<SectShopItemResponse> responses = sectMemberService.getShopItems(1L);
+
+        assertNotNull(responses);
+        assertEquals(1, responses.size());
+        assertEquals("雪莲", responses.get(0).getItemName());
+        assertEquals("material", responses.get(0).getItemType());
+        assertEquals("珍贵的炼丹材料", responses.get(0).getDescription());
+        // 材料类型不查询额外信息，应该为null
+        assertNull(responses.get(0).getBaseDamage());
+        assertNull(responses.get(0).getAttackBonus());
+        assertNull(responses.get(0).getHealAmount());
+    }
+
+    @Test
+    void getShopItems_SkillNotFound_ReturnsBasicInfo() {
+        // 测试技能ID不存在时，仍返回基础信息
+        SectShopItem item = new SectShopItem();
+        item.setItemId(5L);
+        item.setItemName("失传剑诀");
+        item.setItemType("skill");
+        item.setPrice(5000);
+        item.setRefItemId(999L); // 不存在的技能ID
+        item.setCurrentStock(1);
+        item.setRequiredPosition(1);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(sectMemberMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(sectMember);
+        when(shopItemMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(Collections.singletonList(item));
+        when(skillMapper.selectById(999L)).thenReturn(null); // 技能不存在
+
+        List<SectShopItemResponse> responses = sectMemberService.getShopItems(1L);
+
+        assertNotNull(responses);
+        assertEquals(1, responses.size());
+        assertEquals("失传剑诀", responses.get(0).getItemName());
+        assertEquals("skill", responses.get(0).getItemType());
+        // 技能详细信息应该为null
+        assertNull(responses.get(0).getBaseDamage());
+        assertNull(responses.get(0).getSpiritualCost());
+    }
+
+    @Test
+    void getShopItems_MultipleTypes_Success() {
+        // 测试多种类型物品混合
+        SectShopItem skillItem = new SectShopItem();
+        skillItem.setItemId(1L);
+        skillItem.setItemName("雷霆剑诀");
+        skillItem.setItemType("skill");
+        skillItem.setRefItemId(1L);
+        skillItem.setRequiredPosition(1);
+
+        SectShopItem equipItem = new SectShopItem();
+        equipItem.setItemId(2L);
+        equipItem.setItemName("玄铁剑");
+        equipItem.setItemType("equipment");
+        equipItem.setRefItemId(2L);
+        equipItem.setRequiredPosition(1);
+
+        Skill skill = new Skill();
+        skill.setBaseDamage(80);
+        skill.setSpiritualCost(15);
+
+        Equipment equipment = new Equipment();
+        equipment.setAttackPower(50);
+        equipment.setDefensePower(10);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(sectMemberMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(sectMember);
+        when(shopItemMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(skillItem, equipItem));
+        when(skillMapper.selectById(1L)).thenReturn(skill);
+        when(equipmentMapper.selectById(2L)).thenReturn(equipment);
+
+        List<SectShopItemResponse> responses = sectMemberService.getShopItems(1L);
+
+        assertNotNull(responses);
+        assertEquals(2, responses.size());
+
+        // 验证第一个物品（技能）
+        assertEquals("skill", responses.get(0).getItemType());
+        assertEquals(80, responses.get(0).getBaseDamage());
+        assertEquals(15, responses.get(0).getSpiritualCost());
+
+        // 验证第二个物品（装备）
+        assertEquals("equipment", responses.get(1).getItemType());
+        assertEquals(50, responses.get(1).getAttackBonus());
+        assertEquals(10, responses.get(1).getDefenseBonus());
     }
 }

@@ -36,6 +36,12 @@ public class CharacterResponse {
     private Double critDamage; // 暴击伤害（%）
     private Double speed;    // 速度
 
+    // 抗性属性
+    private Integer physicalResist;
+    private Integer iceResist;
+    private Integer fireResist;
+    private Integer lightningResist;
+
     // Getters
     public Long getCharacterId() { return characterId; }
     public String getPlayerName() { return playerName; }
@@ -86,6 +92,38 @@ public class CharacterResponse {
 
     public Double getSpeed() {
         return speed;
+    }
+
+    public Integer getPhysicalResist() {
+        return physicalResist;
+    }
+
+    public void setPhysicalResist(Integer physicalResist) {
+        this.physicalResist = physicalResist;
+    }
+
+    public Integer getIceResist() {
+        return iceResist;
+    }
+
+    public void setIceResist(Integer iceResist) {
+        this.iceResist = iceResist;
+    }
+
+    public Integer getFireResist() {
+        return fireResist;
+    }
+
+    public void setFireResist(Integer fireResist) {
+        this.fireResist = fireResist;
+    }
+
+    public Integer getLightningResist() {
+        return lightningResist;
+    }
+
+    public void setLightningResist(Integer lightningResist) {
+        this.lightningResist = lightningResist;
     }
 
     public String getGender() {
