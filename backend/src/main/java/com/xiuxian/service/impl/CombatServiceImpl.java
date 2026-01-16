@@ -122,6 +122,7 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
         int staminaCost = result.victory ? monster.getStaminaCost() : monster.getStaminaCost() / 2;
         character.setStamina(character.getStamina() - staminaCost);
         character.setHealth(result.characterHpRemaining);
+        character.setSpiritualPower(character.getSpiritualPower() - result.spiritualPowerConsumed);  // 扣除战斗中消耗的灵力
         character.setCurrentState("闲置");
 
         // 8. 发放奖励（如果胜利）
@@ -252,6 +253,7 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
         result.combatLog = new ArrayList<>();
         result.skillsUsed = new ArrayList<>();
         result.slotCooldowns = new HashMap<>();
+        result.spiritualPowerConsumed = 0;  // 初始化灵力消耗
 
         // 初始化：所有槽位冷却为0
         for (int i = 1; i <= 8; i++) {
@@ -293,6 +295,7 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
                 // 使用技能攻击
                 damage = calculateSkillDamage(character, skillResult.skill, skillResult.charSkill);
                 result.skillsUsed.add(skillResult.skill.getSkillName());
+                result.spiritualPowerConsumed += skillResult.spiritualPowerCost;  // 累加灵力消耗
 
                 // 暴击判断
                 boolean isCritical = random.nextInt(100) < CRITICAL_RATE_BASE;
@@ -410,17 +413,15 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
                 continue;
             }
 
-            // 扣除灵力
-            character.setSpiritualPower(character.getSpiritualPower() - skill.getSpiritualCost());
-
             // 设置冷却
             slotCooldowns.put(slot, CombatConstants.SKILL_COOLDOWN_TURNS);
 
-            // 返回使用的技能
+            // 返回使用的技能（包含灵力消耗信息，但不扣除）
             SkillUsageResult result = new SkillUsageResult();
             result.usedSkill = true;
             result.skill = skillResponse;
             result.charSkill = charSkill;
+            result.spiritualPowerCost = skill.getSpiritualCost();
             return result;
         }
 
@@ -466,6 +467,7 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
         boolean usedSkill = false;
         SkillResponse skill;
         CharacterSkill charSkill;
+        int spiritualPowerCost;  // 技能消耗的灵力
     }
 
     /**
@@ -521,6 +523,7 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
         int damageTaken;
         int criticalHits;
         int characterHpRemaining;
+        int spiritualPowerConsumed;  // 战斗中消耗的灵力
         List<String> combatLog;
         List<String> skillsUsed;
         Map<Integer, Integer> slotCooldowns;

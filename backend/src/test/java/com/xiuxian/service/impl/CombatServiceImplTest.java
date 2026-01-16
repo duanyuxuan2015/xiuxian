@@ -99,6 +99,7 @@ public class CombatServiceImplTest {
         character.setRealmId(1);
         character.setExperience(0L);  // 添加经验值
         character.setSpiritStones(100L);  // 添加灵石
+        character.setSpiritualPower(100);  // 添加灵力值
 
         monster = new Monster();
         monster.setMonsterId(1L);
@@ -906,6 +907,7 @@ public class CombatServiceImplTest {
         weakCharacter.setRealmId(1);
         weakCharacter.setExperience(0L);
         weakCharacter.setSpiritStones(100L);
+        weakCharacter.setSpiritualPower(100);  // 添加灵力值
 
         // 创建一个强力妖兽
         Monster strongMonster = new Monster();
@@ -1001,6 +1003,7 @@ public class CombatServiceImplTest {
             freshCharacter.setRealmId(1);
             freshCharacter.setExperience(0L);
             freshCharacter.setSpiritStones(100L);
+            freshCharacter.setSpiritualPower(100);  // 添加灵力值
             return freshCharacter;
         });
         when(monsterService.getById(1L)).thenReturn(monster);
@@ -1097,6 +1100,7 @@ public class CombatServiceImplTest {
             strongCharacter.setRealmId(1);
             strongCharacter.setExperience(0L);
             strongCharacter.setSpiritStones(100L);
+            strongCharacter.setSpiritualPower(100);  // 添加灵力值
             return strongCharacter;
         });
 
@@ -1215,6 +1219,7 @@ public class CombatServiceImplTest {
             freshCharacter.setRealmId(1);
             freshCharacter.setExperience(0L);
             freshCharacter.setSpiritStones(100L);
+            freshCharacter.setSpiritualPower(100);  // 添加灵力值
             return freshCharacter;
         });
         when(monsterService.getById(1L)).thenReturn(monster);
@@ -1267,6 +1272,7 @@ public class CombatServiceImplTest {
             strongCharacter.setRealmId(1);
             strongCharacter.setExperience(0L);
             strongCharacter.setSpiritStones(100L);
+            strongCharacter.setSpiritualPower(100);  // 添加灵力值
             return strongCharacter;
         });
 
@@ -1442,5 +1448,138 @@ public class CombatServiceImplTest {
         // 如果没有冷却，5-6回合应该使用5-6次技能
         // 有4回合冷却，应该只使用1-2次
         assertTrue(skillUsageCount < 3, "技能冷却机制应该限制技能使用频率，实际使用次数: " + skillUsageCount);
+    }
+
+    /**
+     * 测试战斗中技能正确消耗灵力
+     */
+    @Test
+    void testExecuteCombat_SkillConsumesSpiritualPower() {
+        // 准备技能数据
+        CharacterSkill charSkill = new CharacterSkill();
+        charSkill.setCharacterSkillId(1L);
+        charSkill.setCharacterId(1L);
+        charSkill.setSkillId(1L);
+        charSkill.setSkillLevel(1);
+        charSkill.setProficiency(0);
+
+        Skill skill = new Skill();
+        skill.setSkillId(1L);
+        skill.setSkillName("火球术");
+        skill.setFunctionType("法术");
+        skill.setBaseDamage(40);
+        skill.setSkillMultiplier(new java.math.BigDecimal("1.2"));
+        skill.setSpiritualCost(15);  // 每次使用消耗15点灵力
+        skill.setDamageGrowthRate(new java.math.BigDecimal("0.1"));
+
+        SkillResponse skillResponse = new SkillResponse();
+        skillResponse.setCharacterSkillId(1L);
+        skillResponse.setSkillId(1L);
+        skillResponse.setSkillName("火球术");
+        skillResponse.setFunctionType("法术");
+        skillResponse.setSlotIndex(1);
+        skillResponse.setSkillLevel(1);
+
+        // Mock返回已装备的技能
+        when(skillService.getEquippedSkills(1L)).thenReturn(List.of(skillResponse));
+        when(characterSkillMapper.selectById(1L)).thenReturn(charSkill);
+        when(skillMapper.selectById(1L)).thenReturn(skill);
+
+        // 角色初始有100点灵力
+        int initialSpiritualPower = 100;
+        character.setSpiritualPower(initialSpiritualPower);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(monsterService.getById(1L)).thenReturn(monster);
+
+        CombatStartRequest request = new CombatStartRequest();
+        request.setCharacterId(1L);
+        request.setMonsterId(1L);
+        request.setCombatMode("手动");
+
+        CombatResponse response = combatService.startCombat(request);
+
+        assertNotNull(response);
+        assertTrue(response.getVictory());
+
+        // 统计技能使用次数
+        long skillUsageCount = response.getCombatLog().stream()
+                .filter(log -> log.contains("火球术") && log.contains("使用"))
+                .count();
+
+        // 验证灵力被正确扣除
+        // 战斗后角色的灵力 = 初始灵力 - (技能使用次数 × 每次消耗)
+        int expectedConsumed = (int) skillUsageCount * 15;
+        int expectedRemaining = initialSpiritualPower - expectedConsumed;
+
+        // 验证响应中显示的剩余灵力正确
+        assertEquals(expectedRemaining, response.getCharacterSpiritualPowerRemaining(),
+                String.format("灵力应该正确扣除，使用技能%d次，消耗%d点", skillUsageCount, expectedConsumed));
+
+        // 验证灵力确实被消耗了（至少使用了一次技能）
+        assertTrue(skillUsageCount > 0, "应该至少使用一次技能");
+        assertTrue(response.getCharacterSpiritualPowerRemaining() < initialSpiritualPower,
+                "战斗后灵力应该减少");
+    }
+
+    /**
+     * 测试灵力不足时使用普通攻击
+     */
+    @Test
+    void testExecuteCombat_InsufficientSpiritualPower_UsesNormalAttack() {
+        // 准备技能数据
+        CharacterSkill charSkill = new CharacterSkill();
+        charSkill.setCharacterSkillId(1L);
+        charSkill.setCharacterId(1L);
+        charSkill.setSkillId(1L);
+        charSkill.setSkillLevel(1);
+        charSkill.setProficiency(0);
+
+        Skill skill = new Skill();
+        skill.setSkillId(1L);
+        skill.setSkillName("火球术");
+        skill.setFunctionType("法术");
+        skill.setBaseDamage(40);
+        skill.setSkillMultiplier(new java.math.BigDecimal("1.2"));
+        skill.setSpiritualCost(50);  // 高灵力消耗
+        skill.setDamageGrowthRate(new java.math.BigDecimal("0.1"));
+
+        SkillResponse skillResponse = new SkillResponse();
+        skillResponse.setCharacterSkillId(1L);
+        skillResponse.setSkillId(1L);
+        skillResponse.setSkillName("火球术");
+        skillResponse.setFunctionType("法术");
+        skillResponse.setSlotIndex(1);
+        skillResponse.setSkillLevel(1);
+
+        // Mock返回已装备的技能
+        when(skillService.getEquippedSkills(1L)).thenReturn(List.of(skillResponse));
+        when(characterSkillMapper.selectById(1L)).thenReturn(charSkill);
+        when(skillMapper.selectById(1L)).thenReturn(skill);
+
+        // 角色只有10点灵力，不足以使用技能（需要50点）
+        character.setSpiritualPower(10);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(monsterService.getById(1L)).thenReturn(monster);
+
+        CombatStartRequest request = new CombatStartRequest();
+        request.setCharacterId(1L);
+        request.setMonsterId(1L);
+        request.setCombatMode("手动");
+
+        CombatResponse response = combatService.startCombat(request);
+
+        assertNotNull(response);
+        assertTrue(response.getVictory());
+
+        // 验证没有使用技能（因为灵力不足）
+        boolean usedSkill = response.getCombatLog().stream()
+                .anyMatch(log -> log.contains("火球术") && log.contains("使用"));
+        assertFalse(usedSkill, "灵力不足时不应该使用技能");
+
+        // 验证灵力没有被消耗（因为没使用技能）
+        assertEquals(10, response.getCharacterSpiritualPowerRemaining(),
+                "灵力不足时，灵力不应该被消耗");
     }
 }
