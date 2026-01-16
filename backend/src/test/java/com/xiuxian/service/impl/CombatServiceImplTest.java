@@ -1299,7 +1299,7 @@ public class CombatServiceImplTest {
                 response.getCombatLog().stream()
                         .filter(log -> log.contains("暴击"))
                         .forEach(log -> {
-                            assertTrue(log.contains("暴击！"), "暴击日志应包含'暴击！'");
+                            assertTrue(log.contains("暴击伤害"), "暴击日志应包含'暴击伤害'");
                             assertTrue(log.contains("回合"), "暴击日志应包含回合信息");
                             assertTrue(log.contains("造成"), "暴击日志应包含伤害信息");
                         });

@@ -304,11 +304,19 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
                 monsterHp -= damage;
                 result.damageDealt += damage;
 
-                result.combatLog.add(String.format("回合%d: %s使用[%s](Lv.%d)，对%s造成%d点伤害！(%s剩余生命: %d)",
-                        turn, character.getPlayerName(), skillResult.skill.getSkillName(),
-                        skillResult.charSkill.getSkillLevel(),
-                        monster.getMonsterName(), damage,
-                        monster.getMonsterName(), Math.max(0, monsterHp)));
+                if (isCritical) {
+                    result.combatLog.add(String.format("回合%d: %s使用[%s](Lv.%d)，对%s造成%d点暴击伤害！(%s剩余生命: %d)",
+                            turn, character.getPlayerName(), skillResult.skill.getSkillName(),
+                            skillResult.charSkill.getSkillLevel(),
+                            monster.getMonsterName(), damage,
+                            monster.getMonsterName(), Math.max(0, monsterHp)));
+                } else {
+                    result.combatLog.add(String.format("回合%d: %s使用[%s](Lv.%d)，对%s造成%d点伤害 (%s剩余生命: %d)",
+                            turn, character.getPlayerName(), skillResult.skill.getSkillName(),
+                            skillResult.charSkill.getSkillLevel(),
+                            monster.getMonsterName(), damage,
+                            monster.getMonsterName(), Math.max(0, monsterHp)));
+                }
             } else {
                 // 普通攻击
                 boolean isCritical = random.nextInt(100) < CRITICAL_RATE_BASE;
@@ -318,7 +326,7 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
 
                 if (isCritical) {
                     result.criticalHits++;
-                    result.combatLog.add(String.format("回合%d: %s暴击！对%s造成%d点伤害 (%s剩余生命: %d)",
+                    result.combatLog.add(String.format("回合%d: %s对%s造成%d点暴击伤害 (%s剩余生命: %d)",
                             turn, character.getPlayerName(), monster.getMonsterName(), damage,
                             monster.getMonsterName(), Math.max(0, monsterHp)));
                 } else {
