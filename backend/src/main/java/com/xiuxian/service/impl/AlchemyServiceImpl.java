@@ -168,6 +168,12 @@ public class AlchemyServiceImpl extends ServiceImpl<AlchemyRecordMapper, Alchemy
 
         // 4. 验证并消耗材料
         List<PillRecipeResponse.MaterialRequirement> materials = getMaterialRequirements(characterId, recipeId);
+
+        // 检查丹方是否配置了材料
+        if (materials == null || materials.isEmpty()) {
+            throw new BusinessException(5006, "丹方数据有误，未配置材料");
+        }
+
         for (PillRecipeResponse.MaterialRequirement mat : materials) {
             if (!mat.getSufficient()) {
                 throw new BusinessException(5005, "材料不足: " + mat.getMaterialName() +
