@@ -17,6 +17,7 @@ import com.xiuxian.service.CharacterService;
 import com.xiuxian.service.RealmService;
 import com.xiuxian.config.CultivationProperties;
 import com.xiuxian.config.MeditationProperties;
+import com.xiuxian.config.StaminaCostProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -89,6 +90,22 @@ public class CultivationServiceImplTest {
         Field cultivationField = CultivationServiceImpl.class.getDeclaredField("cultivationProperties");
         cultivationField.setAccessible(true);
         cultivationField.set(cultivationService, cultivationProperties);
+
+        // 初始化 StaminaCostProperties 并设置默认值
+        StaminaCostProperties staminaCostProperties = new StaminaCostProperties();
+        staminaCostProperties.setCultivation(5);
+        staminaCostProperties.setCombatMultiplier(1.0);
+        staminaCostProperties.setCombatDefeatRatio(0.5);
+        staminaCostProperties.setAlchemy(0);
+        staminaCostProperties.setForging(0);
+        staminaCostProperties.setExploration(0);
+        staminaCostProperties.setMeditation(0);
+        staminaCostProperties.setBreakthrough(0);
+
+        // 使用反射设置 staminaCostProperties 到 cultivationService
+        Field staminaCostField = CultivationServiceImpl.class.getDeclaredField("staminaCostProperties");
+        staminaCostField.setAccessible(true);
+        staminaCostField.set(cultivationService, staminaCostProperties);
 
         character = new PlayerCharacter();
         character.setCharacterId(1L);

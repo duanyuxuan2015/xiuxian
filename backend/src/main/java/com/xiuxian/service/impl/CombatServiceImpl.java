@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.xiuxian.common.exception.BusinessException;
 import com.xiuxian.config.CombatConstants;
 import com.xiuxian.config.CombatProperties;
+import com.xiuxian.config.StaminaCostProperties;
 import com.xiuxian.dto.request.CombatStartRequest;
 import com.xiuxian.dto.response.CombatResponse;
 import com.xiuxian.dto.response.SkillResponse;
@@ -61,6 +62,7 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
     private final CharacterSkillMapper characterSkillMapper;
     private final SkillMapper skillMapper;
     private final CombatProperties combatProperties;
+    private final StaminaCostProperties staminaCostProperties;
     private final Random random = new Random();
 
     public CombatServiceImpl(@Lazy CharacterService characterService, MonsterService monsterService,
@@ -68,7 +70,7 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
                              InventoryService inventoryService, EquipmentMapper equipmentMapper,
                              @Lazy SectTaskService sectTaskService, @Lazy SkillService skillService,
                              CharacterSkillMapper characterSkillMapper, SkillMapper skillMapper,
-                             CombatProperties combatProperties) {
+                             CombatProperties combatProperties, StaminaCostProperties staminaCostProperties) {
         this.characterService = characterService;
         this.monsterService = monsterService;
         this.realmService = realmService;
@@ -80,6 +82,7 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
         this.characterSkillMapper = characterSkillMapper;
         this.skillMapper = skillMapper;
         this.combatProperties = combatProperties;
+        this.staminaCostProperties = staminaCostProperties;
     }
 
     @Override
@@ -120,8 +123,10 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
 
         // 7. 更新角色状态
         character = characterService.getById(characterId);
-        double defeatRatio = combatProperties.getStaminaCostDefeatRatio();
-        int staminaCost = result.victory ? monster.getStaminaCost() : (int) (monster.getStaminaCost() * defeatRatio);
+        double combatMultiplier = staminaCostProperties.getCombatMultiplier();
+        double defeatRatio = staminaCostProperties.getCombatDefeatRatio();
+        int baseStaminaCost = (int) (monster.getStaminaCost() * combatMultiplier);
+        int staminaCost = result.victory ? baseStaminaCost : (int) (baseStaminaCost * defeatRatio);
         character.setStamina(character.getStamina() - staminaCost);
         character.setHealth(result.characterHpRemaining);
         character.setSpiritualPower(character.getSpiritualPower() - result.spiritualPowerConsumed);  // 扣除战斗中消耗的灵力

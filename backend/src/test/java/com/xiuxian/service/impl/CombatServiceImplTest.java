@@ -3,6 +3,7 @@ package com.xiuxian.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.xiuxian.common.exception.BusinessException;
 import com.xiuxian.config.CombatProperties;
+import com.xiuxian.config.StaminaCostProperties;
 import com.xiuxian.dto.request.CombatStartRequest;
 import com.xiuxian.dto.response.CombatResponse;
 import com.xiuxian.entity.CombatRecord;
@@ -102,6 +103,21 @@ public class CombatServiceImplTest {
         Field propertiesField = CombatServiceImpl.class.getDeclaredField("combatProperties");
         propertiesField.setAccessible(true);
         propertiesField.set(combatService, combatProperties);
+
+        // 注入 StaminaCostProperties 配置对象
+        StaminaCostProperties staminaCostProperties = new StaminaCostProperties();
+        staminaCostProperties.setCultivation(5);
+        staminaCostProperties.setCombatMultiplier(1.0);
+        staminaCostProperties.setCombatDefeatRatio(0.5);
+        staminaCostProperties.setAlchemy(0);
+        staminaCostProperties.setForging(0);
+        staminaCostProperties.setExploration(0);
+        staminaCostProperties.setMeditation(0);
+        staminaCostProperties.setBreakthrough(0);
+
+        Field staminaCostField = CombatServiceImpl.class.getDeclaredField("staminaCostProperties");
+        staminaCostField.setAccessible(true);
+        staminaCostField.set(combatService, staminaCostProperties);
 
         character = new PlayerCharacter();
         character.setCharacterId(1L);

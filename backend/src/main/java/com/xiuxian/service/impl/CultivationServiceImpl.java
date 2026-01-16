@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.xiuxian.common.exception.BusinessException;
 import com.xiuxian.config.CultivationProperties;
 import com.xiuxian.config.MeditationProperties;
+import com.xiuxian.config.StaminaCostProperties;
 import com.xiuxian.dto.request.BreakthroughRequest;
 import com.xiuxian.dto.request.CultivationRequest;
 import com.xiuxian.dto.request.MeditationRequest;
@@ -45,18 +46,21 @@ public class CultivationServiceImpl extends ServiceImpl<CultivationRecordMapper,
     private final SectTaskService sectTaskService;
     private final MeditationProperties meditationProperties;
     private final CultivationProperties cultivationProperties;
+    private final StaminaCostProperties staminaCostProperties;
     private final Random random = new Random();
 
     public CultivationServiceImpl(@Lazy CharacterService characterService,
                                   RealmService realmService,
                                   @Lazy SectTaskService sectTaskService,
                                   MeditationProperties meditationProperties,
-                                  CultivationProperties cultivationProperties) {
+                                  CultivationProperties cultivationProperties,
+                                  StaminaCostProperties staminaCostProperties) {
         this.characterService = characterService;
         this.realmService = realmService;
         this.sectTaskService = sectTaskService;
         this.meditationProperties = meditationProperties;
         this.cultivationProperties = cultivationProperties;
+        this.staminaCostProperties = staminaCostProperties;
     }
 
     @Override
@@ -76,7 +80,7 @@ public class CultivationServiceImpl extends ServiceImpl<CultivationRecordMapper,
         }
 
         // 3. 检查体力是否足够
-        int staminaCost = cultivationProperties.getStaminaCost();
+        int staminaCost = staminaCostProperties.getCultivation();
         if (character.getStamina() < staminaCost) {
             throw new BusinessException(2003, "体力不足，需要" + staminaCost + "点体力，当前：" + character.getStamina());
         }

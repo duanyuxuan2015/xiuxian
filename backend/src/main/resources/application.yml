@@ -168,10 +168,10 @@ app:
       min: 50        # 基础经验值下限
       max: 200       # 基础经验值上限
     bonus:
-      comprehension: 0.001  # 悟性加成系数（每点悟性增加的经验比例）
-      realm-per-level: 0.1  # 境界加成系数（每境界等级增加的经验比例）
+      comprehension: 0.1  # 悟性加成系数（每点悟性增加的经验比例）
+      realm-per-level: 2  # 境界加成系数（每境界等级增加的经验比例）
     level-multiplier: 0.5    # 层次升级系数（每层增加0.5倍）
-    stamina-cost: 5         # 每次修炼消耗的体力
+    stamina-cost: 20       # 每次修炼消耗的体力
 
   # 属性计算配置（FR-008）
   attributes:
