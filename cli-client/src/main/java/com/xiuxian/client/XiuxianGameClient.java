@@ -633,6 +633,15 @@ public class XiuxianGameClient {
     private static void startMeditation() throws IOException, InterruptedException {
         System.out.println("\n--- 打坐恢复 ---");
 
+        // 刷新角色信息以获取最新数据
+        refreshCharacter();
+
+        if (currentCharacter == null) {
+            System.out.println("\n❌ 角色信息加载失败！");
+            pressEnterToContinue();
+            return;
+        }
+
         // 1. 获取打坐时间
         System.out.println("正在计算打坐时间...");
         String timeResponse = ApiClient.get("/cultivation/meditation/time?characterId=" + currentCharacterId);
@@ -707,6 +716,9 @@ public class XiuxianGameClient {
                 System.out.printf("│ 灵力恢复: %6d                       │%n", spiritualPowerRecovered);
                 System.out.printf("│ 气血恢复: %6d                       │%n", healthRecovered);
                 System.out.println("└──────────────────────────────────────┘");
+
+                // 刷新角色信息
+                refreshCharacter();
             }
         } else {
             String errorMsg = jsonObject.has("message") ?
