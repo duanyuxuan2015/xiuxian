@@ -535,8 +535,8 @@ public class CultivationServiceImpl extends ServiceImpl<CultivationRecordMapper,
             return new MeditationTimeResponse(characterId, 0, 0, 0, 0, 0);
         }
 
-        // 3. 获取属性值
-        Integer mindset = character.getMindset() != null ? character.getMindset() : 0;
+        // 3. 获取属性值（使用精神属性而不是心境值）
+        Integer spirit = character.getSpirit() != null ? character.getSpirit() : 0;
         Integer comprehension = character.getComprehension() != null ? character.getComprehension() : 0;
 
         // 4. 从配置文件获取参数
@@ -546,7 +546,7 @@ public class CultivationServiceImpl extends ServiceImpl<CultivationRecordMapper,
         int minTime = meditationProperties.getMinTime();
 
         // 5. 计算总减免时间（先计算总和再转int，避免精度丢失）
-        int totalReduction = (int) (mindset * mindsetCoefficient + comprehension * comprehensionCoefficient);
+        int totalReduction = (int) (spirit * mindsetCoefficient + comprehension * comprehensionCoefficient);
 
         // 6. 计算最终时间
         int finalTime = baseTime - totalReduction;
@@ -556,10 +556,10 @@ public class CultivationServiceImpl extends ServiceImpl<CultivationRecordMapper,
         }
 
         logger.debug("角色{}打坐时间计算：基础{}秒，精神{}，悟性{}，减免{}秒，最终{}秒",
-            characterId, baseTime, mindset, comprehension, totalReduction, finalTime);
+            characterId, baseTime, spirit, comprehension, totalReduction, finalTime);
 
         return new MeditationTimeResponse(characterId, baseTime,
-            mindset, comprehension, totalReduction, finalTime);
+            spirit, comprehension, totalReduction, finalTime);
     }
 
     /**

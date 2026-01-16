@@ -975,14 +975,14 @@ public class CultivationServiceImplTest {
     void testGetMeditationTime_Beginner() {
         // 测试新手角色（低精神、低悟性）
         when(characterService.getById(1L)).thenReturn(character);
-        character.setMindset(10);
+        character.setSpirit(10);
         character.setComprehension(10);
 
         MeditationTimeResponse response = cultivationService.getMeditationTime(1L);
 
         assertNotNull(response);
         assertEquals(30, response.getBaseTime());
-        assertEquals(10, response.getMindset());
+        assertEquals(10, response.getSpirit());
         assertEquals(10, response.getComprehension());
         assertEquals(1, response.getReductionTime());
         assertEquals(29, response.getFinalTime());
@@ -992,14 +992,14 @@ public class CultivationServiceImplTest {
     void testGetMeditationTime_Advanced() {
         // 测试高级角色（高精神、高悟性）
         when(characterService.getById(1L)).thenReturn(character);
-        character.setMindset(500);
+        character.setSpirit(500);
         character.setComprehension(500);
 
         MeditationTimeResponse response = cultivationService.getMeditationTime(1L);
 
         assertNotNull(response);
         assertEquals(30, response.getBaseTime());
-        assertEquals(500, response.getMindset());
+        assertEquals(500, response.getSpirit());
         assertEquals(500, response.getComprehension());
         assertEquals(25, response.getReductionTime()); // 应该被限制为25秒减免
         assertEquals(5, response.getFinalTime());     // 最短时间5秒
@@ -1019,7 +1019,7 @@ public class CultivationServiceImplTest {
     void testGetMeditationTime_SeparateCoefficients() throws Exception {
         // 测试精神和悟性分别计算减免
         when(characterService.getById(1L)).thenReturn(character);
-        character.setMindset(100);  // 精神100
+        character.setSpirit(100);  // 精神100
         character.setComprehension(50);  // 悟性50
 
         MeditationTimeResponse response = cultivationService.getMeditationTime(1L);
@@ -1030,7 +1030,7 @@ public class CultivationServiceImplTest {
         // 最终时间: 30 - 7 = 23秒
         assertNotNull(response);
         assertEquals(30, response.getBaseTime());
-        assertEquals(100, response.getMindset());
+        assertEquals(100, response.getSpirit());
         assertEquals(50, response.getComprehension());
         assertEquals(7, response.getReductionTime());  // 5 + 2
         assertEquals(23, response.getFinalTime());      // 30 - 7
@@ -1040,7 +1040,7 @@ public class CultivationServiceImplTest {
     void testGetMeditationTime_HighMindsetLowComprehension() throws Exception {
         // 测试高精神低悟性的情况
         when(characterService.getById(1L)).thenReturn(character);
-        character.setMindset(200);  // 精神200
+        character.setSpirit(200);  // 精神200
         character.setComprehension(10);  // 悟性10
 
         MeditationTimeResponse response = cultivationService.getMeditationTime(1L);
@@ -1050,7 +1050,7 @@ public class CultivationServiceImplTest {
         // 总减免: 10秒
         // 最终时间: 30 - 10 = 20秒
         assertNotNull(response);
-        assertEquals(200, response.getMindset());
+        assertEquals(200, response.getSpirit());
         assertEquals(10, response.getComprehension());
         assertEquals(10, response.getReductionTime());
         assertEquals(20, response.getFinalTime());
@@ -1060,14 +1060,14 @@ public class CultivationServiceImplTest {
     void testGetMeditationTime_ZeroMindsetZeroComprehension() throws Exception {
         // 测试精神和悟性都为0的情况
         when(characterService.getById(1L)).thenReturn(character);
-        character.setMindset(0);
+        character.setSpirit(0);
         character.setComprehension(0);
 
         MeditationTimeResponse response = cultivationService.getMeditationTime(1L);
 
         // 没有任何减免，时间保持基础时间
         assertEquals(30, response.getBaseTime());
-        assertEquals(0, response.getMindset());
+        assertEquals(0, response.getSpirit());
         assertEquals(0, response.getComprehension());
         assertEquals(0, response.getReductionTime());
         assertEquals(30, response.getFinalTime());
@@ -1077,7 +1077,7 @@ public class CultivationServiceImplTest {
     void testGetMeditationTime_OnlyMindset() throws Exception {
         // 测试只有精神有值，悟性为0
         when(characterService.getById(1L)).thenReturn(character);
-        character.setMindset(300);
+        character.setSpirit(300);
         character.setComprehension(0);
 
         MeditationTimeResponse response = cultivationService.getMeditationTime(1L);
@@ -1085,7 +1085,7 @@ public class CultivationServiceImplTest {
         // 精神减免: 300 × 0.05 = 15秒
         // 悟性减免: 0
         // 最终时间: 30 - 15 = 15秒
-        assertEquals(300, response.getMindset());
+        assertEquals(300, response.getSpirit());
         assertEquals(0, response.getComprehension());
         assertEquals(15, response.getReductionTime());
         assertEquals(15, response.getFinalTime());
@@ -1095,7 +1095,7 @@ public class CultivationServiceImplTest {
     void testGetMeditationTime_OnlyComprehension() throws Exception {
         // 测试只有悟性有值，精神为0
         when(characterService.getById(1L)).thenReturn(character);
-        character.setMindset(0);
+        character.setSpirit(0);
         character.setComprehension(400);
 
         MeditationTimeResponse response = cultivationService.getMeditationTime(1L);
@@ -1103,7 +1103,7 @@ public class CultivationServiceImplTest {
         // 精神减免: 0
         // 悟性减免: 400 × 0.05 = 20秒
         // 最终时间: 30 - 20 = 10秒
-        assertEquals(0, response.getMindset());
+        assertEquals(0, response.getSpirit());
         assertEquals(400, response.getComprehension());
         assertEquals(20, response.getReductionTime());
         assertEquals(10, response.getFinalTime());
@@ -1113,7 +1113,7 @@ public class CultivationServiceImplTest {
     void testGetMeditationTime_RespectMinTime() throws Exception {
         // 测试最短时间限制（极端高属性值）
         when(characterService.getById(1L)).thenReturn(character);
-        character.setMindset(999);  // 精神满值
+        character.setSpirit(999);  // 精神满值
         character.setComprehension(999);  // 悟性满值
 
         MeditationTimeResponse response = cultivationService.getMeditationTime(1L);
@@ -1121,7 +1121,7 @@ public class CultivationServiceImplTest {
         // 计算减免: 999 × 0.05 + 999 × 0.05 = 99.9秒
         // 但实际减免被限制为 25秒（30 - 5）
         // 最终时间被限制为最小值5秒
-        assertEquals(999, response.getMindset());
+        assertEquals(999, response.getSpirit());
         assertEquals(999, response.getComprehension());
         assertEquals(25, response.getReductionTime());  // 被限制为25秒
         assertEquals(5, response.getFinalTime());       // 被限制为5秒
@@ -1131,14 +1131,14 @@ public class CultivationServiceImplTest {
     void testGetMeditationTime_NullAttributes() throws Exception {
         // 测试属性为null的情况（应该当作0处理）
         when(characterService.getById(1L)).thenReturn(character);
-        character.setMindset(null);
+        character.setSpirit(null);
         character.setComprehension(null);
 
         MeditationTimeResponse response = cultivationService.getMeditationTime(1L);
 
         // null值应该被当作0处理
         assertEquals(30, response.getBaseTime());
-        assertEquals(0, response.getMindset());       // null转为0
+        assertEquals(0, response.getSpirit());       // null转为0
         assertEquals(0, response.getComprehension()); // null转为0
         assertEquals(0, response.getReductionTime());
         assertEquals(30, response.getFinalTime());
@@ -1160,7 +1160,7 @@ public class CultivationServiceImplTest {
         meditationField.set(cultivationService, customConfig);
 
         when(characterService.getById(1L)).thenReturn(character);
-        character.setMindset(100);
+        character.setSpirit(100);
         character.setComprehension(100);
 
         MeditationTimeResponse response = cultivationService.getMeditationTime(1L);
@@ -1169,7 +1169,7 @@ public class CultivationServiceImplTest {
         // 悟性减免: 100 × 0.02 = 2秒
         // 总减免: 12秒
         // 最终时间: 30 - 12 = 18秒
-        assertEquals(100, response.getMindset());
+        assertEquals(100, response.getSpirit());
         assertEquals(100, response.getComprehension());
         assertEquals(12, response.getReductionTime());
         assertEquals(18, response.getFinalTime());
@@ -1185,14 +1185,14 @@ public class CultivationServiceImplTest {
         character.setStaminaMax(100);
         character.setSpiritualPower(100);
         character.setSpiritualPowerMax(100);
-        character.setMindset(100);
+        character.setSpirit(100);
         character.setComprehension(100);
 
         MeditationTimeResponse response = cultivationService.getMeditationTime(1L);
 
         // 三个属性都满，应该返回0秒
         assertEquals(0, response.getBaseTime());
-        assertEquals(0, response.getMindset());
+        assertEquals(0, response.getSpirit());
         assertEquals(0, response.getComprehension());
         assertEquals(0, response.getReductionTime());
         assertEquals(0, response.getFinalTime());
@@ -1208,7 +1208,7 @@ public class CultivationServiceImplTest {
         character.setStaminaMax(100);
         character.setSpiritualPower(100); // 灵力满
         character.setSpiritualPowerMax(100);
-        character.setMindset(50);
+        character.setSpirit(50);
         character.setComprehension(50);
 
         MeditationTimeResponse response = cultivationService.getMeditationTime(1L);
@@ -1217,7 +1217,7 @@ public class CultivationServiceImplTest {
         // 减免: 50 × 0.05 + 50 × 0.05 = 5秒
         // 最终时间: 30 - 5 = 25秒
         assertEquals(30, response.getBaseTime());
-        assertEquals(50, response.getMindset());
+        assertEquals(50, response.getSpirit());
         assertEquals(50, response.getComprehension());
         assertEquals(5, response.getReductionTime());
         assertEquals(25, response.getFinalTime());
@@ -1233,7 +1233,7 @@ public class CultivationServiceImplTest {
         character.setStaminaMax(100);
         character.setSpiritualPower(100); // 灵力满
         character.setSpiritualPowerMax(100);
-        character.setMindset(200);
+        character.setSpirit(200);
         character.setComprehension(100);
 
         MeditationTimeResponse response = cultivationService.getMeditationTime(1L);
@@ -1242,7 +1242,7 @@ public class CultivationServiceImplTest {
         // 减免: 200 × 0.05 + 100 × 0.05 = 15秒
         // 最终时间: 30 - 15 = 15秒
         assertEquals(30, response.getBaseTime());
-        assertEquals(200, response.getMindset());
+        assertEquals(200, response.getSpirit());
         assertEquals(100, response.getComprehension());
         assertEquals(15, response.getReductionTime());
         assertEquals(15, response.getFinalTime());

@@ -6,7 +6,7 @@ package com.xiuxian.client.model;
 public class MeditationTimeInfo {
     private Long characterId;
     private Integer baseTime;
-    private Integer mindset;
+    private Integer spirit;
     private Integer comprehension;
     private Integer reductionTime;
     private Integer finalTime;
@@ -29,12 +29,12 @@ public class MeditationTimeInfo {
         this.baseTime = baseTime;
     }
 
-    public Integer getMindset() {
-        return mindset;
+    public Integer getSpirit() {
+        return spirit;
     }
 
-    public void setMindset(Integer mindset) {
-        this.mindset = mindset;
+    public void setSpirit(Integer spirit) {
+        this.spirit = spirit;
     }
 
     public Integer getComprehension() {

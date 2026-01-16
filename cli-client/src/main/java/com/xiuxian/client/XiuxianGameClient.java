@@ -3913,6 +3913,11 @@ public class XiuxianGameClient {
                 }
                 System.out.println("└─────────────────────────────────────────────────────┘");
             }
+
+            // 刷新角色信息以获取最新数据
+            refreshCharacter();
+        } else {
+            System.out.println("\n❌ 加点失败！");
         }
 
         pressEnterToContinue();

@@ -7,7 +7,7 @@ public class MeditationTimeResponse {
 
     private Long characterId;
     private Integer baseTime;          // 基础时间（秒）
-    private Integer mindset;           // 精神属性
+    private Integer spirit;            // 精神属性
     private Integer comprehension;     // 悟性属性
     private Integer reductionTime;     // 减免时间（秒）
     private Integer finalTime;         // 最终时间（秒）
@@ -17,16 +17,16 @@ public class MeditationTimeResponse {
 
     // 构造函数
     public MeditationTimeResponse(Long characterId, Integer baseTime,
-                                   Integer mindset, Integer comprehension,
+                                   Integer spirit, Integer comprehension,
                                    Integer reductionTime, Integer finalTime) {
         this.characterId = characterId;
         this.baseTime = baseTime;
-        this.mindset = mindset;
+        this.spirit = spirit;
         this.comprehension = comprehension;
         this.reductionTime = reductionTime;
         this.finalTime = finalTime;
         this.message = String.format("预计打坐时间：%d秒（精神%d + 悟性%d，减免%d秒）",
-            finalTime, mindset, comprehension, reductionTime);
+            finalTime, spirit, comprehension, reductionTime);
     }
 
     // Getter和Setter方法
@@ -46,12 +46,12 @@ public class MeditationTimeResponse {
         this.baseTime = baseTime;
     }
 
-    public Integer getMindset() {
-        return mindset;
+    public Integer getSpirit() {
+        return spirit;
     }
 
-    public void setMindset(Integer mindset) {
-        this.mindset = mindset;
+    public void setSpirit(Integer spirit) {
+        this.spirit = spirit;
     }
 
     public Integer getComprehension() {
