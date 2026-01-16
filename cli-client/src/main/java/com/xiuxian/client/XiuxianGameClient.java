@@ -1524,8 +1524,39 @@ public class XiuxianGameClient {
      */
     private static void showAlchemyRecords() throws IOException, InterruptedException {
         System.out.println("\n--- 炼丹记录 ---");
+
         String response = ApiClient.get("/alchemy/records/" + currentCharacterId);
-        System.out.println("\n" + response);
+        Type listType = new TypeToken<List<AlchemyResponse>>(){}.getType();
+
+        JsonObject jsonObject = gson.fromJson(response, JsonObject.class);
+        if (jsonObject.has("data") && jsonObject.get("data").isJsonArray()) {
+            JsonArray array = jsonObject.get("data").getAsJsonArray();
+            List<AlchemyResponse> records = gson.fromJson(array, listType);
+
+            if (records != null && !records.isEmpty()) {
+                System.out.println("\n序号  丹方名称        结果    品质  数量  经验  时间");
+                System.out.println("──────────────────────────────────────────────────────────");
+                for (int i = 0; i < records.size(); i++) {
+                    AlchemyResponse r = records.get(i);
+                    String result = r.isSuccess() ? "成功" : "失败";
+                    String quality = r.getResultQuality() != null ? r.getResultQuality() : "-";
+                    String quantity = r.getQuantity() != null ? r.getQuantity().toString() : "-";
+
+                    // 格式化时间显示（只显示日期和时间部分）
+                    String timeStr = r.getCreatedAt() != null ?
+                        r.getCreatedAt().toString().substring(0, 19).replace("T", " ") : "-";
+
+                    System.out.printf("%-4d  %-14s  %-6s  %-4s  %-4s  %-4d  %s%n",
+                            i + 1, r.getRecipeName(), result, quality, quantity,
+                            r.getExperienceGained() != null ? r.getExperienceGained() : 0, timeStr);
+                }
+            } else {
+                System.out.println("\n暂无炼丹记录！");
+            }
+        } else {
+            System.out.println("\n❌ 获取炼丹记录失败！");
+        }
+
         pressEnterToContinue();
     }
 
