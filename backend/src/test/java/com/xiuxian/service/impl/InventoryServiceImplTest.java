@@ -471,50 +471,40 @@ public class InventoryServiceImplTest {
 
     @Test
     void sellItem_EquipmentEquipped_ThrowsException() {
-        // 准备测试数据 - 装备已装备
+        // 准备测试数据 - 拥有1件，已装备1件，出售1件（应该失败）
         CharacterInventory inventory = new CharacterInventory();
         inventory.setInventoryId(1L);
         inventory.setCharacterId(1L);
         inventory.setItemType("equipment");
         inventory.setItemId(10L);
-        inventory.setQuantity(1);
+        inventory.setQuantity(1); // 拥有1件
 
         Equipment equipment = new Equipment();
         equipment.setEquipmentName("传说之剑");
         equipment.setBaseScore(100);
 
-        CharacterEquipment equipped = new CharacterEquipment();
-        equipped.setCharacterId(1L);
-        equipped.setEquipmentId(10L);
-        equipped.setEquipmentSlot("weapon");
-
         // Mock配置
         lenient().when(inventoryService.getById(1L)).thenReturn(inventory);
         lenient().when(equipmentMapper.selectById(10L)).thenReturn(equipment);
 
-        // 简化Mock配置 - 任何selectOne调用都返回已装备的装备
-        lenient().when(characterEquipmentMapper.selectOne(any())).thenReturn(equipped);
+        // 返回已装备数量为1
+        lenient().when(characterEquipmentMapper.selectCount(any())).thenReturn(1L);
 
         // 执行测试并验证异常
         com.xiuxian.common.exception.BusinessException exception = assertThrows(
             com.xiuxian.common.exception.BusinessException.class,
-            () -> inventoryService.sellItem(1L, 1L, 1)
+            () -> inventoryService.sellItem(1L, 1L, 1) // 出售1件，1-1=0 < 1，应该失败
         );
-
-        // 打印异常消息用于调试
-        System.out.println("异常消息: " + exception.getMessage());
-        System.out.println("异常码: " + exception.getCode());
 
         // 验证异常信息
         assertNotNull(exception);
-        assertTrue(exception.getMessage().contains("已装备"), "异常消息应包含'已装备'，实际消息: " + exception.getMessage());
-        assertTrue(exception.getMessage().contains("无法出售"), "异常消息应包含'无法出售'");
+        assertTrue(exception.getMessage().contains("已装备"), "异常消息应包含'已装备'");
         assertEquals(6005, exception.getCode());
     }
 
     @Test
     void sellItem_EquipmentNotEquipped_Success() {
-        // 准备测试数据 - 装备未装备
+        // 准备测试数据 - 装备未装备（已装备数量为0）
         CharacterInventory inventory = new CharacterInventory();
         inventory.setInventoryId(1L);
         inventory.setCharacterId(1L);
@@ -530,10 +520,10 @@ public class InventoryServiceImplTest {
         character.setCharacterId(1L);
         character.setSpiritStones(500L);
 
-        // Mock配置 - 返回null表示装备未装备
+        // Mock配置 - 返回已装备数量为0
         lenient().when(inventoryService.getById(1L)).thenReturn(inventory);
         lenient().when(equipmentMapper.selectById(10L)).thenReturn(equipment);
-        lenient().when(characterEquipmentMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(null);
+        lenient().when(characterEquipmentMapper.selectCount(any())).thenReturn(0L);
         lenient().when(characterService.getById(1L)).thenReturn(character);
         lenient().when(characterService.updateById(any(PlayerCharacter.class))).thenReturn(true);
 
@@ -541,7 +531,7 @@ public class InventoryServiceImplTest {
         InventoryServiceImpl spyService = org.mockito.Mockito.spy(inventoryService);
         org.mockito.Mockito.doReturn(true).when(spyService).removeItem(eq(1L), eq("equipment"), eq(10L), eq(1));
 
-        // 执行测试 - 应该成功
+        // 执行测试 - 应该成功（1-1=0 >= 0）
         SellItemResponse response = spyService.sellItem(1L, 1L, 1);
 
         // 验证结果
@@ -590,6 +580,78 @@ public class InventoryServiceImplTest {
         assertEquals(3, response.getQuantity());
 
         // 验证没有查询装备表
-        verify(characterEquipmentMapper, never()).selectOne(any(LambdaQueryWrapper.class), anyBoolean());
+        verify(characterEquipmentMapper, never()).selectCount(any());
+    }
+
+    @Test
+    void sellItem_MultipleEquipment_SellOne_Success() {
+        // 准备测试数据 - 拥有13件，已装备1件，出售1件（应该成功）
+        CharacterInventory inventory = new CharacterInventory();
+        inventory.setInventoryId(1L);
+        inventory.setCharacterId(1L);
+        inventory.setItemType("equipment");
+        inventory.setItemId(10L);
+        inventory.setQuantity(13); // 拥有13件
+
+        Equipment equipment = new Equipment();
+        equipment.setEquipmentName("龙鳞甲");
+        equipment.setBaseScore(150);
+
+        PlayerCharacter character = new PlayerCharacter();
+        character.setCharacterId(1L);
+        character.setSpiritStones(1000L);
+
+        // Mock配置 - 返回已装备数量为1
+        lenient().when(inventoryService.getById(1L)).thenReturn(inventory);
+        lenient().when(equipmentMapper.selectById(10L)).thenReturn(equipment);
+        lenient().when(characterEquipmentMapper.selectCount(any())).thenReturn(1L);
+        lenient().when(characterService.getById(1L)).thenReturn(character);
+        lenient().when(characterService.updateById(any(PlayerCharacter.class))).thenReturn(true);
+
+        // 使用spy来调用实际方法
+        InventoryServiceImpl spyService = org.mockito.Mockito.spy(inventoryService);
+        org.mockito.Mockito.doReturn(true).when(spyService).removeItem(eq(1L), eq("equipment"), eq(10L), eq(1));
+
+        // 执行测试 - 应该成功（13-1=12 >= 1）
+        SellItemResponse response = spyService.sellItem(1L, 1L, 1);
+
+        // 验证结果
+        assertNotNull(response);
+        assertEquals("龙鳞甲", response.getItemName());
+        assertEquals(1, response.getQuantity());
+        assertEquals(1500L, response.getTotalSpiritStones()); // 150 * 10
+        assertEquals(2500L, response.getRemainingSpiritStones()); // 1000 + 1500
+        assertTrue(response.getMessage().contains("成功出售"));
+    }
+
+    @Test
+    void sellItem_MultipleEquipment_SellExcess_ThrowsException() {
+        // 准备测试数据 - 拥有5件，已装备2件，出售4件（应该失败）
+        CharacterInventory inventory = new CharacterInventory();
+        inventory.setInventoryId(1L);
+        inventory.setCharacterId(1L);
+        inventory.setItemType("equipment");
+        inventory.setItemId(10L);
+        inventory.setQuantity(5); // 拥有5件
+
+        Equipment equipment = new Equipment();
+        equipment.setEquipmentName("精钢剑");
+        equipment.setBaseScore(80);
+
+        // Mock配置 - 返回已装备数量为2
+        lenient().when(inventoryService.getById(1L)).thenReturn(inventory);
+        lenient().when(equipmentMapper.selectById(10L)).thenReturn(equipment);
+        lenient().when(characterEquipmentMapper.selectCount(any())).thenReturn(2L);
+
+        // 执行测试并验证异常
+        com.xiuxian.common.exception.BusinessException exception = assertThrows(
+            com.xiuxian.common.exception.BusinessException.class,
+            () -> inventoryService.sellItem(1L, 1L, 4) // 出售4件，5-4=1 < 2，应该失败
+        );
+
+        // 验证异常信息
+        assertNotNull(exception);
+        assertTrue(exception.getMessage().contains("已装备"), "异常消息应包含'已装备'");
+        assertEquals(6005, exception.getCode());
     }
 }

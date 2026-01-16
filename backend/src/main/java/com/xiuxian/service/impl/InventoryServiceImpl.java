@@ -157,18 +157,26 @@ public class InventoryServiceImpl extends ServiceImpl<CharacterInventoryMapper, 
             throw new BusinessException(3004, "出售数量超过拥有数量");
         }
 
-        // 1.5. 如果是装备，检查是否已装备
+        // 1.5. 如果是装备，检查出售后是否会少于已装备数量
         if ("equipment".equals(inventory.getItemType())) {
             Long equipmentId = inventory.getItemId();
+
+            // 查询该装备已装备的数量
             LambdaQueryWrapper<CharacterEquipment> equipmentWrapper = new LambdaQueryWrapper<>();
             equipmentWrapper.eq(CharacterEquipment::getCharacterId, characterId)
                     .eq(CharacterEquipment::getEquipmentId, equipmentId);
+            Long equippedCount = characterEquipmentMapper.selectCount(equipmentWrapper);
 
-            CharacterEquipment equipped = characterEquipmentMapper.selectOne(equipmentWrapper);
-            if (equipped != null) {
+            // 计算出售后剩余数量
+            int remainingQuantity = inventory.getQuantity() - quantity;
+
+            // 检查：剩余数量必须 >= 已装备数量
+            if (remainingQuantity < equippedCount) {
                 Equipment equipment = equipmentMapper.selectById(equipmentId);
                 String equipmentName = equipment != null ? equipment.getEquipmentName() : "该装备";
-                throw new BusinessException(6005, String.format("装备[%s]已装备，无法出售。请先卸下装备。", equipmentName));
+                throw new BusinessException(6005, String.format(
+                        "装备[%s]已装备%d件，出售%d件后剩余%d件，不足以保留已装备的装备。请先卸下装备或减少出售数量。",
+                        equipmentName, equippedCount, quantity, remainingQuantity));
             }
         }
 
