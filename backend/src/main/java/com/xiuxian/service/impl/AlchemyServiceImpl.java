@@ -233,10 +233,34 @@ public class AlchemyServiceImpl extends ServiceImpl<AlchemyRecordMapper, Alchemy
 
         this.save(record);
 
-        // 7. 增加炼丹经验（可以在Character实体中添加alchemyExp字段来累计）
-        // 这里简化处理，只记录在record中
+        // 7. 增加炼丹经验并检查升级
+        int currentAlchemyExp = character.getAlchemyExp() != null ? character.getAlchemyExp() : 0;
+        int newAlchemyExp = currentAlchemyExp + expGained;
+        character.setAlchemyExp(newAlchemyExp);
 
-        return AlchemyResponse.fromEntity(record, recipe.getRecipeName(), pill);
+        // 检查是否升级（升级公式：100 * level）
+        int expNeededForNextLevel = 100 * character.getAlchemyLevel();
+        boolean leveledUp = false;
+        while (newAlchemyExp >= expNeededForNextLevel) {
+            newAlchemyExp -= expNeededForNextLevel;
+            character.setAlchemyExp(newAlchemyExp);
+            character.setAlchemyLevel(character.getAlchemyLevel() + 1);
+            leveledUp = true;
+            logger.info("炼丹等级提升: characterId={}, newLevel={}", characterId, character.getAlchemyLevel());
+            expNeededForNextLevel = 100 * character.getAlchemyLevel();
+        }
+
+        // 更新角色数据
+        characterService.updateById(character);
+
+        // 8. 构建响应
+        AlchemyResponse response = AlchemyResponse.fromEntity(record, recipe.getRecipeName(), pill);
+
+        if (leveledUp) {
+            response.setMessage(response.getMessage() + String.format("，炼丹等级提升至%d级！", character.getAlchemyLevel()));
+        }
+
+        return response;
     }
 
     @Override

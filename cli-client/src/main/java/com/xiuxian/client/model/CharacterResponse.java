@@ -17,7 +17,9 @@ public class CharacterResponse {
     private Integer stamina;
     private Integer staminaMax;
     private Integer alchemyLevel;
+    private Integer alchemyExp;
     private Integer forgingLevel;  // 后端字段名
+    private Integer forgingExp;
     private String sectName;
     private String sectPosition;
     private Integer contribution;
@@ -60,8 +62,10 @@ public class CharacterResponse {
     public Integer getMaxStamina() { return staminaMax; }  // 兼容旧代码
     public Integer getStaminaMax() { return staminaMax; }
     public Integer getAlchemyLevel() { return alchemyLevel; }
+    public Integer getAlchemyExp() { return alchemyExp; }
     public Integer getForgeLevel() { return forgingLevel; }  // 兼容旧代码
     public Integer getForgingLevel() { return forgingLevel; }
+    public Integer getForgingExp() { return forgingExp; }
     public String getSectName() { return sectName; }
     public String getSectPosition() { return sectPosition; }
     public Integer getContribution() { return contribution; }
@@ -148,8 +152,10 @@ public class CharacterResponse {
     public void setMaxStamina(Integer maxStamina) { this.staminaMax = maxStamina; }  // 兼容旧代码
     public void setStaminaMax(Integer staminaMax) { this.staminaMax = staminaMax; }
     public void setAlchemyLevel(Integer alchemyLevel) { this.alchemyLevel = alchemyLevel; }
+    public void setAlchemyExp(Integer alchemyExp) { this.alchemyExp = alchemyExp; }
     public void setForgeLevel(Integer forgeLevel) { this.forgingLevel = forgeLevel; }  // 兼容旧代码
     public void setForgingLevel(Integer forgingLevel) { this.forgingLevel = forgingLevel; }
+    public void setForgingExp(Integer forgingExp) { this.forgingExp = forgingExp; }
     public void setSectName(String sectName) { this.sectName = sectName; }
     public void setSectPosition(String sectPosition) { this.sectPosition = sectPosition; }
     public void setContribution(Integer contribution) { this.contribution = contribution; }

@@ -1256,8 +1256,23 @@ public class XiuxianGameClient {
      */
     private static void showAlchemyMenu() throws IOException, InterruptedException {
         while (true) {
+            // 刷新角色信息以获取最新的炼丹等级和经验
+            refreshCharacter();
+
+            if (currentCharacter == null) {
+                System.out.println("\n❌ 角色信息加载失败！");
+                pressEnterToContinue();
+                return;
+            }
+
+            int alchemyLevel = currentCharacter.getAlchemyLevel() != null ? currentCharacter.getAlchemyLevel() : 1;
+            int alchemyExp = currentCharacter.getAlchemyExp() != null ? currentCharacter.getAlchemyExp() : 0;
+            int expNeeded = calculateAlchemyExpNeeded(alchemyLevel);
+
             System.out.println("\n┌──────────────────────────────────────┐");
             System.out.println("│              炼 丹 系 统              │");
+            System.out.println("├──────────────────────────────────────┤");
+            System.out.printf("│  炼丹等级: %d级  经验: %d/%d          │%n", alchemyLevel, alchemyExp, expNeeded);
             System.out.println("├──────────────────────────────────────┤");
             System.out.println("│  1. 查看丹方列表                     │");
             System.out.println("│  2. 开始炼丹                         │");
@@ -1278,6 +1293,14 @@ public class XiuxianGameClient {
                 default: System.out.println("\n无效选择！");
             }
         }
+    }
+
+    /**
+     * 计算炼丹升级所需经验
+     */
+    private static int calculateAlchemyExpNeeded(int level) {
+        // 升级经验公式：100 * level
+        return 100 * level;
     }
 
     /**

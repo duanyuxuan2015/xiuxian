@@ -38,7 +38,9 @@ public class CharacterResponse {
     private Integer contribution;
     private Integer reputation;
     private Integer alchemyLevel;
+    private Integer alchemyExp;
     private Integer forgingLevel;
+    private Integer forgingExp;
     private String currentState;
     private LocalDateTime createdAt;
 
@@ -80,7 +82,9 @@ public class CharacterResponse {
         response.setContribution(character.getContribution());
         response.setReputation(character.getReputation());
         response.setAlchemyLevel(character.getAlchemyLevel());
+        response.setAlchemyExp(character.getAlchemyExp());
         response.setForgingLevel(character.getForgingLevel());
+        response.setForgingExp(character.getForgingExp());
         response.setCurrentState(character.getCurrentState());
         response.setCreatedAt(character.getCreatedAt());
         return response;
@@ -326,12 +330,28 @@ public class CharacterResponse {
         this.alchemyLevel = alchemyLevel;
     }
 
+    public Integer getAlchemyExp() {
+        return alchemyExp;
+    }
+
+    public void setAlchemyExp(Integer alchemyExp) {
+        this.alchemyExp = alchemyExp;
+    }
+
     public Integer getForgingLevel() {
         return forgingLevel;
     }
 
     public void setForgingLevel(Integer forgingLevel) {
         this.forgingLevel = forgingLevel;
+    }
+
+    public Integer getForgingExp() {
+        return forgingExp;
+    }
+
+    public void setForgingExp(Integer forgingExp) {
+        this.forgingExp = forgingExp;
     }
 
     public String getCurrentState() {
