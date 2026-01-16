@@ -2,6 +2,7 @@ package com.xiuxian.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.xiuxian.common.exception.BusinessException;
+import com.xiuxian.config.CombatProperties;
 import com.xiuxian.dto.request.CombatStartRequest;
 import com.xiuxian.dto.response.CombatResponse;
 import com.xiuxian.entity.CombatRecord;
@@ -87,6 +88,20 @@ public class CombatServiceImplTest {
             baseMapperField.setAccessible(true);
             baseMapperField.set(combatService, combatRecordMapper);
         }
+
+        // 注入 CombatProperties 配置对象
+        CombatProperties combatProperties = new CombatProperties();
+        combatProperties.setMaxTurns(50);
+        combatProperties.setCriticalRateBase(5);
+        combatProperties.setCriticalDamageMultiplier(1.5);
+        combatProperties.setStaminaCostDefeatRatio(0.5);
+        combatProperties.setDamageFluctuation(new CombatProperties.DamageFluctuationConfig());
+        combatProperties.getDamageFluctuation().setMin(0.9);
+        combatProperties.getDamageFluctuation().setMax(1.1);
+
+        Field propertiesField = CombatServiceImpl.class.getDeclaredField("combatProperties");
+        propertiesField.setAccessible(true);
+        propertiesField.set(combatService, combatProperties);
 
         character = new PlayerCharacter();
         character.setCharacterId(1L);
@@ -1581,5 +1596,127 @@ public class CombatServiceImplTest {
         // 验证灵力没有被消耗（因为没使用技能）
         assertEquals(10, response.getCharacterSpiritualPowerRemaining(),
                 "灵力不足时，灵力不应该被消耗");
+    }
+
+    // ==================== 战斗配置化测试 ====================
+
+    @Test
+    void combat_WithCustomCriticalMultiplier() throws Exception {
+        // 测试自定义暴击倍率
+        CombatProperties customConfig = new CombatProperties();
+        customConfig.setMaxTurns(50);
+        customConfig.setCriticalRateBase(5);
+        customConfig.setCriticalDamageMultiplier(2.0);  // 设置为200%
+        customConfig.setStaminaCostDefeatRatio(0.5);
+        customConfig.setDamageFluctuation(new CombatProperties.DamageFluctuationConfig());
+        customConfig.getDamageFluctuation().setMin(0.9);
+        customConfig.getDamageFluctuation().setMax(1.1);
+
+        // 使用反射注入自定义配置
+        java.lang.reflect.Field field = CombatServiceImpl.class.getDeclaredField("combatProperties");
+        field.setAccessible(true);
+        field.set(combatService, customConfig);
+
+        // 创建realm对象
+        Realm testRealm = new Realm();
+        testRealm.setId(1);
+        testRealm.setRealmName("Mortal");
+        testRealm.setAttackBonus(0);
+        testRealm.setDefenseBonus(0);
+
+        // 设置角色和妖兽
+        character.setHealth(100);
+        character.setHealthMax(100);
+        character.setStamina(100);
+        character.setConstitution(50);  // 体质50，攻击力 = 50×2 = 100
+        character.setSpirit(30);         // 精神30，攻击力 = 30×1 = 30
+        character.setRealmId(1);
+        character.setRealmLevel(1);
+        character.setCurrentState("闲置");
+
+        monster.setMonsterId(1L);
+        monster.setMonsterName("狼妖");
+        monster.setHp(200);
+        monster.setAttackPower(30);
+        monster.setDefensePower(20);  // 防御20
+        monster.setExpReward(100);
+        monster.setSpiritStonesReward(10);
+        monster.setStaminaCost(10);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(monsterService.getById(1L)).thenReturn(monster);
+        when(realmService.getById(1)).thenReturn(testRealm);
+
+        CombatStartRequest request = new CombatStartRequest();
+        request.setCharacterId(1L);
+        request.setMonsterId(1L);
+        request.setCombatMode("手动");
+
+        CombatResponse response = combatService.startCombat(request);
+
+        assertNotNull(response);
+        // 验证战斗执行成功（暴击倍率为200%）
+        assertTrue(response.getVictory());
+    }
+
+    @Test
+    void combat_WithCustomMaxTurns() throws Exception {
+        // 测试自定义最大回合数
+        CombatProperties customConfig = new CombatProperties();
+        customConfig.setMaxTurns(5);  // 设置最大回合数为5
+        customConfig.setCriticalRateBase(5);
+        customConfig.setCriticalDamageMultiplier(1.5);
+        customConfig.setStaminaCostDefeatRatio(0.5);
+        customConfig.setDamageFluctuation(new CombatProperties.DamageFluctuationConfig());
+        customConfig.getDamageFluctuation().setMin(0.9);
+        customConfig.getDamageFluctuation().setMax(1.1);
+
+        // 使用反射注入自定义配置
+        java.lang.reflect.Field field = CombatServiceImpl.class.getDeclaredField("combatProperties");
+        field.setAccessible(true);
+        field.set(combatService, customConfig);
+
+        // 创建realm对象
+        Realm testRealm = new Realm();
+        testRealm.setId(1);
+        testRealm.setRealmName("Mortal");
+        testRealm.setAttackBonus(0);
+        testRealm.setDefenseBonus(0);
+
+        // 设置一个极弱的角色，无法在5回合内击败妖兽
+        character.setHealth(100);
+        character.setHealthMax(100);
+        character.setStamina(100);
+        character.setConstitution(1);  // 体质1，攻击力很低
+        character.setSpirit(1);
+        character.setRealmId(1);
+        character.setRealmLevel(1);
+        character.setCurrentState("闲置");
+
+        monster.setMonsterId(1L);
+        monster.setMonsterName("狼妖");
+        monster.setHp(10000);  // 血量极高
+        monster.setAttackPower(10);
+        monster.setDefensePower(100);  // 防御极高
+        monster.setExpReward(100);
+        monster.setSpiritStonesReward(10);
+        monster.setStaminaCost(10);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(monsterService.getById(1L)).thenReturn(monster);
+        when(realmService.getById(1)).thenReturn(testRealm);
+
+        CombatStartRequest request = new CombatStartRequest();
+        request.setCharacterId(1L);
+        request.setMonsterId(1L);
+        request.setCombatMode("手动");
+
+        CombatResponse response = combatService.startCombat(request);
+
+        assertNotNull(response);
+        // 应该失败（因为角色极弱，无法在5回合内击败高血量的妖兽）
+        assertFalse(response.getVictory(), "极弱角色应该无法击败高血量妖兽");
+        // 验证达到最大回合数
+        assertTrue(response.getTurns() >= 5, "应该达到最大回合数限制");
     }
 }

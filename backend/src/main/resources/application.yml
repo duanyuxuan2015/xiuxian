@@ -119,6 +119,16 @@ app:
   idle-combat:
     max-battles: 5  # 挂机最大战斗轮数
 
+  # 战斗配置
+  combat:
+    max-turns: 50                      # 最大战斗回合数
+    critical-rate-base: 5              # 基础暴击率（%）
+    critical-damage-multiplier: 1.5    # 暴击伤害倍率（150%）
+    damage-fluctuation:
+      min: 0.9                        # 伤害随机波动下限（90%）
+      max: 1.1                        # 伤害随机波动上限（110%）
+    stamina-cost-defeat-ratio: 2    # 战斗失败时体力消耗比例（50%）
+
   # 宗门任务配置
   sect-task:
     daily-accept-limit: 30 # 每日任务接取上限
@@ -143,6 +153,25 @@ app:
         contribution-cost: 99999
         spirit-stones-cost: 999999
         enabled: false               # 禁用此升级路径
+
+  # 打坐配置
+  meditation:
+    base-time: 30                          # 基础打坐时间（秒）
+    mindset-reduction-coefficient: 0.05    # 精神属性的时间减免系数（每点精神减少的秒数）
+    comprehension-reduction-coefficient: 0.1  # 悟性属性的时间减免系数（每点悟性减少的秒数）
+    min-time: 5                            # 最短打坐时间（秒）
+    recovery-ratio: 0.3                    # 打坐恢复比例（30%）
+
+  # 修炼配置
+  cultivation:
+    base-exp:
+      min: 50        # 基础经验值下限
+      max: 200       # 基础经验值上限
+    bonus:
+      comprehension: 0.001  # 悟性加成系数（每点悟性增加的经验比例）
+      realm-per-level: 0.1  # 境界加成系数（每境界等级增加的经验比例）
+    level-multiplier: 0.5    # 层次升级系数（每层增加0.5倍）
+    stamina-cost: 5         # 每次修炼消耗的体力
 
   # 属性计算配置（FR-008）
   attributes:

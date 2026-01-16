@@ -4,12 +4,15 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.xiuxian.common.exception.BusinessException;
+import com.xiuxian.config.CultivationProperties;
+import com.xiuxian.config.MeditationProperties;
 import com.xiuxian.dto.request.BreakthroughRequest;
 import com.xiuxian.dto.request.CultivationRequest;
 import com.xiuxian.dto.request.MeditationRequest;
 import com.xiuxian.dto.response.BreakthroughResponse;
 import com.xiuxian.dto.response.CultivationResponse;
 import com.xiuxian.dto.response.MeditationResponse;
+import com.xiuxian.dto.response.MeditationTimeResponse;
 import com.xiuxian.entity.PlayerCharacter;
 import com.xiuxian.entity.CultivationRecord;
 import com.xiuxian.entity.Realm;
@@ -37,28 +40,23 @@ public class CultivationServiceImpl extends ServiceImpl<CultivationRecordMapper,
     private static final Logger logger = LoggerFactory.getLogger(CultivationServiceImpl.class);
     private static final Logger operationLogger = LoggerFactory.getLogger("OPERATION");
 
-    /**
-     * 每次修炼消耗的体力
-     */
-    private static final int STAMINA_COST = 5;
-
-    /**
-     * 基础经验值范围
-     */
-    private static final int BASE_EXP_MIN = 50;
-    private static final int BASE_EXP_MAX = 200;
-
     private final CharacterService characterService;
     private final RealmService realmService;
     private final SectTaskService sectTaskService;
+    private final MeditationProperties meditationProperties;
+    private final CultivationProperties cultivationProperties;
     private final Random random = new Random();
 
     public CultivationServiceImpl(@Lazy CharacterService characterService,
                                   RealmService realmService,
-                                  @Lazy SectTaskService sectTaskService) {
+                                  @Lazy SectTaskService sectTaskService,
+                                  MeditationProperties meditationProperties,
+                                  CultivationProperties cultivationProperties) {
         this.characterService = characterService;
         this.realmService = realmService;
         this.sectTaskService = sectTaskService;
+        this.meditationProperties = meditationProperties;
+        this.cultivationProperties = cultivationProperties;
     }
 
     @Override
@@ -78,8 +76,9 @@ public class CultivationServiceImpl extends ServiceImpl<CultivationRecordMapper,
         }
 
         // 3. 检查体力是否足够
-        if (character.getStamina() < STAMINA_COST) {
-            throw new BusinessException(2003, "体力不足，需要" + STAMINA_COST + "点体力，当前：" + character.getStamina());
+        int staminaCost = cultivationProperties.getStaminaCost();
+        if (character.getStamina() < staminaCost) {
+            throw new BusinessException(2003, "体力不足，需要" + staminaCost + "点体力，当前：" + character.getStamina());
         }
 
         // 4. 获取当前境界信息
@@ -96,7 +95,7 @@ public class CultivationServiceImpl extends ServiceImpl<CultivationRecordMapper,
         int expGained = calculateExpGained(character, currentRealm);
 
         // 7. 更新角色状态
-        character.setStamina(character.getStamina() - STAMINA_COST);
+        character.setStamina(character.getStamina() - staminaCost);
         character.setExperience(character.getExperience() + expGained);
         character.setCurrentState("修炼中");
 
@@ -123,7 +122,7 @@ public class CultivationServiceImpl extends ServiceImpl<CultivationRecordMapper,
         record.setEndRealm(endRealmName);
         record.setEndLevel(endLevel);
         record.setExpGained(expGained);
-        record.setStaminaConsumed(STAMINA_COST);
+        record.setStaminaConsumed(staminaCost);
         record.setIsBreakthrough(0);
         record.setCultivationTime(LocalDateTime.now());
         this.save(record);
@@ -142,7 +141,7 @@ public class CultivationServiceImpl extends ServiceImpl<CultivationRecordMapper,
         response.setEndRealm(endRealmName);
         response.setEndLevel(endLevel);
         response.setExpGained(expGained);
-        response.setStaminaConsumed(STAMINA_COST);
+        response.setStaminaConsumed(staminaCost);
         response.setCurrentExperience(character.getExperience());
         response.setCurrentStamina(character.getStamina());
         response.setLeveledUp(leveledUp);
@@ -229,14 +228,20 @@ public class CultivationServiceImpl extends ServiceImpl<CultivationRecordMapper,
      * 计算获得的经验值
      */
     private int calculateExpGained(PlayerCharacter character, Realm realm) {
-        // 基础经验值 = 随机值(50-200)
-        int baseExp = BASE_EXP_MIN + random.nextInt(BASE_EXP_MAX - BASE_EXP_MIN + 1);
+        // 从配置获取基础经验值范围
+        int baseExpMin = cultivationProperties.getBaseExp().getMin();
+        int baseExpMax = cultivationProperties.getBaseExp().getMax();
+        int baseExp = baseExpMin + random.nextInt(baseExpMax - baseExpMin + 1);
 
-        // 悟性加成：每10点悟性增加1%经验
-        double comprehensionBonus = 1.0 + (character.getComprehension() / 1000.0);
+        // 从配置获取加成系数
+        double comprehensionCoefficient = cultivationProperties.getBonus().getComprehension();
+        double realmCoefficient = cultivationProperties.getBonus().getRealmPerLevel();
 
-        // 境界加成：境界越高，基础经验越多
-        double realmBonus = 1.0 + (realm.getRealmLevel() - 1) * 0.1;
+        // 计算悟性加成
+        double comprehensionBonus = 1.0 + character.getComprehension() * comprehensionCoefficient;
+
+        // 计算境界加成
+        double realmBonus = 1.0 + (realm.getRealmLevel() - 1) * realmCoefficient;
 
         return (int) (baseExp * comprehensionBonus * realmBonus);
     }
@@ -260,7 +265,8 @@ public class CultivationServiceImpl extends ServiceImpl<CultivationRecordMapper,
     private long calculateRequiredExpForLevel(Realm realm, int level) {
         // 每层所需经验 = 境界基础经验 × 层次系数
         // 层次系数：1层=1.0, 2层=1.5, 3层=2.0, ..., 9层=5.0
-        double levelMultiplier = 1.0 + (level - 1) * 0.5;
+        double levelMultiplierConfig = cultivationProperties.getLevelMultiplier();
+        double levelMultiplier = 1.0 + (level - 1) * levelMultiplierConfig;
         return (long) (realm.getRequiredExp() * levelMultiplier);
     }
 
@@ -448,17 +454,20 @@ public class CultivationServiceImpl extends ServiceImpl<CultivationRecordMapper,
         }
 
         // 3. 计算恢复量
-        // 体力恢复：恢复最大体力的30%
-        int staminaToRecover = (int) (character.getStaminaMax() * 0.3);
+        // 从配置获取恢复比例
+        double recoveryRatio = meditationProperties.getRecoveryRatio();
+
+        // 体力恢复：恢复最大体力的配置比例
+        int staminaToRecover = (int) (character.getStaminaMax() * recoveryRatio);
         int actualStaminaRecovered = Math.min(staminaToRecover, character.getStaminaMax() - character.getStamina());
 
-        // 灵力恢复：恢复最大灵力的30%
-        int spiritualPowerToRecover = (int) (character.getSpiritualPowerMax() * 0.3);
+        // 灵力恢复：恢复最大灵力的配置比例
+        int spiritualPowerToRecover = (int) (character.getSpiritualPowerMax() * recoveryRatio);
         int actualSpiritualPowerRecovered = Math.min(spiritualPowerToRecover,
                 character.getSpiritualPowerMax() - character.getSpiritualPower());
 
-        // 气血恢复：恢复最大气血的30%
-        int healthToRecover = (int) (character.getHealthMax() * 0.3);
+        // 气血恢复：恢复最大气血的配置比例
+        int healthToRecover = (int) (character.getHealthMax() * recoveryRatio);
         int actualHealthRecovered = Math.min(healthToRecover, character.getHealthMax() - character.getHealth());
 
         // 4. 更新角色状态
@@ -495,6 +504,58 @@ public class CultivationServiceImpl extends ServiceImpl<CultivationRecordMapper,
                 actualHealthRecovered, actualStaminaRecovered, actualSpiritualPowerRecovered));
 
         return response;
+    }
+
+    /**
+     * 获取打坐所需时间
+     */
+    @Override
+    public MeditationTimeResponse getMeditationTime(Long characterId) {
+        // 1. 验证角色是否存在
+        PlayerCharacter character = characterService.getById(characterId);
+        if (character == null) {
+            throw new BusinessException(1003, "角色不存在");
+        }
+
+        // 2. 检查是否需要打坐（气血、体力、灵力是否已满）
+        int health = character.getHealth() != null ? character.getHealth() : 0;
+        int healthMax = character.getHealthMax() != null ? character.getHealthMax() : 0;
+        int stamina = character.getStamina() != null ? character.getStamina() : 0;
+        int staminaMax = character.getStaminaMax() != null ? character.getStaminaMax() : 0;
+        int spiritualPower = character.getSpiritualPower() != null ? character.getSpiritualPower() : 0;
+        int spiritualPowerMax = character.getSpiritualPowerMax() != null ? character.getSpiritualPowerMax() : 0;
+
+        // 如果三个属性都满了，返回0秒时间
+        if (health >= healthMax && stamina >= staminaMax && spiritualPower >= spiritualPowerMax) {
+            logger.debug("角色{}气血、体力、灵力均已满，无需打坐", characterId);
+            return new MeditationTimeResponse(characterId, 0, 0, 0, 0, 0);
+        }
+
+        // 3. 获取属性值
+        Integer mindset = character.getMindset() != null ? character.getMindset() : 0;
+        Integer comprehension = character.getComprehension() != null ? character.getComprehension() : 0;
+
+        // 4. 从配置文件获取参数
+        int baseTime = meditationProperties.getBaseTime();
+        double mindsetCoefficient = meditationProperties.getMindsetReductionCoefficient();
+        double comprehensionCoefficient = meditationProperties.getComprehensionReductionCoefficient();
+        int minTime = meditationProperties.getMinTime();
+
+        // 5. 计算总减免时间（先计算总和再转int，避免精度丢失）
+        int totalReduction = (int) (mindset * mindsetCoefficient + comprehension * comprehensionCoefficient);
+
+        // 6. 计算最终时间
+        int finalTime = baseTime - totalReduction;
+        if (finalTime < minTime) {
+            finalTime = minTime;
+            totalReduction = baseTime - minTime;
+        }
+
+        logger.debug("角色{}打坐时间计算：基础{}秒，精神{}，悟性{}，减免{}秒，最终{}秒",
+            characterId, baseTime, mindset, comprehension, totalReduction, finalTime);
+
+        return new MeditationTimeResponse(characterId, baseTime,
+            mindset, comprehension, totalReduction, finalTime);
     }
 
     /**

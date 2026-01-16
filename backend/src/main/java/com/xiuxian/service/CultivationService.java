@@ -8,6 +8,7 @@ import com.xiuxian.dto.request.MeditationRequest;
 import com.xiuxian.dto.response.BreakthroughResponse;
 import com.xiuxian.dto.response.CultivationResponse;
 import com.xiuxian.dto.response.MeditationResponse;
+import com.xiuxian.dto.response.MeditationTimeResponse;
 import com.xiuxian.entity.CultivationRecord;
 
 /**
@@ -58,4 +59,11 @@ public interface CultivationService extends IService<CultivationRecord> {
      * @return 打坐结果
      */
     MeditationResponse meditation(MeditationRequest request);
+
+    /**
+     * 获取打坐所需时间
+     * @param characterId 角色ID
+     * @return 打坐时间信息
+     */
+    MeditationTimeResponse getMeditationTime(Long characterId);
 }

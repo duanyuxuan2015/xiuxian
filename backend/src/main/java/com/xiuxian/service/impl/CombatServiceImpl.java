@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.xiuxian.common.exception.BusinessException;
 import com.xiuxian.config.CombatConstants;
+import com.xiuxian.config.CombatProperties;
 import com.xiuxian.dto.request.CombatStartRequest;
 import com.xiuxian.dto.response.CombatResponse;
 import com.xiuxian.dto.response.SkillResponse;
@@ -49,9 +50,6 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
     private static final Logger logger = LoggerFactory.getLogger(CombatServiceImpl.class);
     private static final Logger operationLogger = LoggerFactory.getLogger("OPERATION");
 
-    private static final int MAX_TURNS = 50;
-    private static final int CRITICAL_RATE_BASE = 5;
-
     private final CharacterService characterService;
     private final MonsterService monsterService;
     private final RealmService realmService;
@@ -62,13 +60,15 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
     private final SkillService skillService;
     private final CharacterSkillMapper characterSkillMapper;
     private final SkillMapper skillMapper;
+    private final CombatProperties combatProperties;
     private final Random random = new Random();
 
     public CombatServiceImpl(@Lazy CharacterService characterService, MonsterService monsterService,
                              RealmService realmService, MonsterDropService monsterDropService,
                              InventoryService inventoryService, EquipmentMapper equipmentMapper,
                              @Lazy SectTaskService sectTaskService, @Lazy SkillService skillService,
-                             CharacterSkillMapper characterSkillMapper, SkillMapper skillMapper) {
+                             CharacterSkillMapper characterSkillMapper, SkillMapper skillMapper,
+                             CombatProperties combatProperties) {
         this.characterService = characterService;
         this.monsterService = monsterService;
         this.realmService = realmService;
@@ -79,6 +79,7 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
         this.skillService = skillService;
         this.characterSkillMapper = characterSkillMapper;
         this.skillMapper = skillMapper;
+        this.combatProperties = combatProperties;
     }
 
     @Override
@@ -119,7 +120,8 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
 
         // 7. 更新角色状态
         character = characterService.getById(characterId);
-        int staminaCost = result.victory ? monster.getStaminaCost() : monster.getStaminaCost() / 2;
+        double defeatRatio = combatProperties.getStaminaCostDefeatRatio();
+        int staminaCost = result.victory ? monster.getStaminaCost() : (int) (monster.getStaminaCost() * defeatRatio);
         character.setStamina(character.getStamina() - staminaCost);
         character.setHealth(result.characterHpRemaining);
         character.setSpiritualPower(character.getSpiritualPower() - result.spiritualPowerConsumed);  // 扣除战斗中消耗的灵力
@@ -281,7 +283,8 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
                 monster.getAttackPower(), monster.getDefensePower()));
 
         int turn = 0;
-        while (characterHp > 0 && monsterHp > 0 && turn < MAX_TURNS) {
+        int maxTurns = combatProperties.getMaxTurns();
+        while (characterHp > 0 && monsterHp > 0 && turn < maxTurns) {
             turn++;
 
             // 每回合开始，更新冷却状态
@@ -298,9 +301,11 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
                 result.spiritualPowerConsumed += skillResult.spiritualPowerCost;  // 累加灵力消耗
 
                 // 暴击判断
-                boolean isCritical = random.nextInt(100) < CRITICAL_RATE_BASE;
+                int criticalRateBase = combatProperties.getCriticalRateBase();
+                boolean isCritical = random.nextInt(100) < criticalRateBase;
                 if (isCritical) {
-                    damage = (int) (damage * 1.5);
+                    double criticalMultiplier = combatProperties.getCriticalDamageMultiplier();
+                    damage = (int) (damage * criticalMultiplier);
                     result.criticalHits++;
                 }
 
@@ -322,7 +327,8 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
                 }
             } else {
                 // 普通攻击
-                boolean isCritical = random.nextInt(100) < CRITICAL_RATE_BASE;
+                int criticalRateBase = combatProperties.getCriticalRateBase();
+                boolean isCritical = random.nextInt(100) < criticalRateBase;
                 damage = calculateDamage(characterAttack, monster.getDefensePower(), isCritical);
                 monsterHp -= damage;
                 result.damageDealt += damage;
@@ -455,8 +461,10 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
         int characterAttack = calculateCharacterAttack(character);
         skillDamage += characterAttack;
 
-        // 添加随机波动 ±10%
-        double fluctuation = 0.9 + random.nextDouble() * 0.2;
+        // 添加随机波动
+        double fluctuationMin = combatProperties.getDamageFluctuation().getMin();
+        double fluctuationMax = combatProperties.getDamageFluctuation().getMax();
+        double fluctuation = fluctuationMin + random.nextDouble() * (fluctuationMax - fluctuationMin);
         return Math.max(1, (int) (skillDamage * fluctuation));
     }
 
@@ -506,10 +514,13 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
     private int calculateDamage(int attack, int defense, boolean isCritical) {
         int baseDamage = Math.max(1, attack - defense);
         if (isCritical) {
-            baseDamage = (int) (baseDamage * 1.5);
+            double criticalMultiplier = combatProperties.getCriticalDamageMultiplier();
+            baseDamage = (int) (baseDamage * criticalMultiplier);
         }
-        // 添加随机波动 ±10%
-        double fluctuation = 0.9 + random.nextDouble() * 0.2;
+        // 添加随机波动
+        double fluctuationMin = combatProperties.getDamageFluctuation().getMin();
+        double fluctuationMax = combatProperties.getDamageFluctuation().getMax();
+        double fluctuation = fluctuationMin + random.nextDouble() * (fluctuationMax - fluctuationMin);
         return Math.max(1, (int) (baseDamage * fluctuation));
     }
 

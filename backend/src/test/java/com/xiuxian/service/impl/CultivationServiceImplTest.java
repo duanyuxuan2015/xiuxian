@@ -8,12 +8,15 @@ import com.xiuxian.dto.request.MeditationRequest;
 import com.xiuxian.dto.response.BreakthroughResponse;
 import com.xiuxian.dto.response.CultivationResponse;
 import com.xiuxian.dto.response.MeditationResponse;
+import com.xiuxian.dto.response.MeditationTimeResponse;
 import com.xiuxian.entity.CultivationRecord;
 import com.xiuxian.entity.PlayerCharacter;
 import com.xiuxian.entity.Realm;
 import com.xiuxian.mapper.CultivationRecordMapper;
 import com.xiuxian.service.CharacterService;
 import com.xiuxian.service.RealmService;
+import com.xiuxian.config.CultivationProperties;
+import com.xiuxian.config.MeditationProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -61,6 +64,32 @@ public class CultivationServiceImplTest {
             baseMapperField.set(cultivationService, cultivationRecordMapper);
         }
 
+        // 初始化 MeditationProperties 并设置默认值
+        MeditationProperties meditationProperties = new MeditationProperties();
+        meditationProperties.setBaseTime(30);
+        meditationProperties.setMindsetReductionCoefficient(0.05);
+        meditationProperties.setComprehensionReductionCoefficient(0.05);
+        meditationProperties.setMinTime(5);
+
+        // 使用反射设置 meditationProperties 到 cultivationService
+        Field meditationField = CultivationServiceImpl.class.getDeclaredField("meditationProperties");
+        meditationField.setAccessible(true);
+        meditationField.set(cultivationService, meditationProperties);
+
+        // 初始化 CultivationProperties 并设置默认值
+        CultivationProperties cultivationProperties = new CultivationProperties();
+        cultivationProperties.getBaseExp().setMin(50);
+        cultivationProperties.getBaseExp().setMax(200);
+        cultivationProperties.getBonus().setComprehension(0.001);
+        cultivationProperties.getBonus().setRealmPerLevel(0.1);
+        cultivationProperties.setLevelMultiplier(0.5);
+        cultivationProperties.setStaminaCost(5);
+
+        // 使用反射设置 cultivationProperties 到 cultivationService
+        Field cultivationField = CultivationServiceImpl.class.getDeclaredField("cultivationProperties");
+        cultivationField.setAccessible(true);
+        cultivationField.set(cultivationService, cultivationProperties);
+
         character = new PlayerCharacter();
         character.setCharacterId(1L);
         character.setPlayerName("TestPlayer");
@@ -72,9 +101,9 @@ public class CultivationServiceImplTest {
         character.setComprehension(10);
         character.setLuck(10);
         character.setAvailablePoints(0);  // 添加可用属性点
-        character.setHealth(100);  // 添加生命值
+        character.setHealth(50);  // 设置为未满状态，避免触发"无需打坐"
         character.setHealthMax(100);  // 添加最大生命值
-        character.setSpiritualPower(100);  // 添加灵力
+        character.setSpiritualPower(50);  // 设置为未满状态，避免触发"无需打坐"
         character.setSpiritualPowerMax(100);  // 添加最大灵力
         character.setStaminaMax(100);  // 添加最大体力
 
@@ -923,5 +952,435 @@ public class CultivationServiceImplTest {
         // 验证能够升级
         assertTrue(upgraded);
         verify(characterService, times(1)).updateCharacter(any(PlayerCharacter.class));
+    }
+
+    @Test
+    void testGetMeditationTime_Beginner() {
+        // 测试新手角色（低精神、低悟性）
+        when(characterService.getById(1L)).thenReturn(character);
+        character.setMindset(10);
+        character.setComprehension(10);
+
+        MeditationTimeResponse response = cultivationService.getMeditationTime(1L);
+
+        assertNotNull(response);
+        assertEquals(30, response.getBaseTime());
+        assertEquals(10, response.getMindset());
+        assertEquals(10, response.getComprehension());
+        assertEquals(1, response.getReductionTime());
+        assertEquals(29, response.getFinalTime());
+    }
+
+    @Test
+    void testGetMeditationTime_Advanced() {
+        // 测试高级角色（高精神、高悟性）
+        when(characterService.getById(1L)).thenReturn(character);
+        character.setMindset(500);
+        character.setComprehension(500);
+
+        MeditationTimeResponse response = cultivationService.getMeditationTime(1L);
+
+        assertNotNull(response);
+        assertEquals(30, response.getBaseTime());
+        assertEquals(500, response.getMindset());
+        assertEquals(500, response.getComprehension());
+        assertEquals(25, response.getReductionTime()); // 应该被限制为25秒减免
+        assertEquals(5, response.getFinalTime());     // 最短时间5秒
+    }
+
+    @Test
+    void testGetMeditationTime_CharacterNotFound() {
+        // 测试角色不存在
+        when(characterService.getById(999L)).thenReturn(null);
+
+        assertThrows(BusinessException.class, () -> {
+            cultivationService.getMeditationTime(999L);
+        });
+    }
+
+    @Test
+    void testGetMeditationTime_SeparateCoefficients() throws Exception {
+        // 测试精神和悟性分别计算减免
+        when(characterService.getById(1L)).thenReturn(character);
+        character.setMindset(100);  // 精神100
+        character.setComprehension(50);  // 悟性50
+
+        MeditationTimeResponse response = cultivationService.getMeditationTime(1L);
+
+        // 精神减免: 100 × 0.05 = 5秒
+        // 悟性减免: 50 × 0.05 = 2.5秒 ≈ 2秒
+        // 总减免: 7秒
+        // 最终时间: 30 - 7 = 23秒
+        assertNotNull(response);
+        assertEquals(30, response.getBaseTime());
+        assertEquals(100, response.getMindset());
+        assertEquals(50, response.getComprehension());
+        assertEquals(7, response.getReductionTime());  // 5 + 2
+        assertEquals(23, response.getFinalTime());      // 30 - 7
+    }
+
+    @Test
+    void testGetMeditationTime_HighMindsetLowComprehension() throws Exception {
+        // 测试高精神低悟性的情况
+        when(characterService.getById(1L)).thenReturn(character);
+        character.setMindset(200);  // 精神200
+        character.setComprehension(10);  // 悟性10
+
+        MeditationTimeResponse response = cultivationService.getMeditationTime(1L);
+
+        // 精神减免: 200 × 0.05 = 10秒
+        // 悟性减免: 10 × 0.05 = 0.5秒 ≈ 0秒
+        // 总减免: 10秒
+        // 最终时间: 30 - 10 = 20秒
+        assertNotNull(response);
+        assertEquals(200, response.getMindset());
+        assertEquals(10, response.getComprehension());
+        assertEquals(10, response.getReductionTime());
+        assertEquals(20, response.getFinalTime());
+    }
+
+    @Test
+    void testGetMeditationTime_ZeroMindsetZeroComprehension() throws Exception {
+        // 测试精神和悟性都为0的情况
+        when(characterService.getById(1L)).thenReturn(character);
+        character.setMindset(0);
+        character.setComprehension(0);
+
+        MeditationTimeResponse response = cultivationService.getMeditationTime(1L);
+
+        // 没有任何减免，时间保持基础时间
+        assertEquals(30, response.getBaseTime());
+        assertEquals(0, response.getMindset());
+        assertEquals(0, response.getComprehension());
+        assertEquals(0, response.getReductionTime());
+        assertEquals(30, response.getFinalTime());
+    }
+
+    @Test
+    void testGetMeditationTime_OnlyMindset() throws Exception {
+        // 测试只有精神有值，悟性为0
+        when(characterService.getById(1L)).thenReturn(character);
+        character.setMindset(300);
+        character.setComprehension(0);
+
+        MeditationTimeResponse response = cultivationService.getMeditationTime(1L);
+
+        // 精神减免: 300 × 0.05 = 15秒
+        // 悟性减免: 0
+        // 最终时间: 30 - 15 = 15秒
+        assertEquals(300, response.getMindset());
+        assertEquals(0, response.getComprehension());
+        assertEquals(15, response.getReductionTime());
+        assertEquals(15, response.getFinalTime());
+    }
+
+    @Test
+    void testGetMeditationTime_OnlyComprehension() throws Exception {
+        // 测试只有悟性有值，精神为0
+        when(characterService.getById(1L)).thenReturn(character);
+        character.setMindset(0);
+        character.setComprehension(400);
+
+        MeditationTimeResponse response = cultivationService.getMeditationTime(1L);
+
+        // 精神减免: 0
+        // 悟性减免: 400 × 0.05 = 20秒
+        // 最终时间: 30 - 20 = 10秒
+        assertEquals(0, response.getMindset());
+        assertEquals(400, response.getComprehension());
+        assertEquals(20, response.getReductionTime());
+        assertEquals(10, response.getFinalTime());
+    }
+
+    @Test
+    void testGetMeditationTime_RespectMinTime() throws Exception {
+        // 测试最短时间限制（极端高属性值）
+        when(characterService.getById(1L)).thenReturn(character);
+        character.setMindset(999);  // 精神满值
+        character.setComprehension(999);  // 悟性满值
+
+        MeditationTimeResponse response = cultivationService.getMeditationTime(1L);
+
+        // 计算减免: 999 × 0.05 + 999 × 0.05 = 99.9秒
+        // 但实际减免被限制为 25秒（30 - 5）
+        // 最终时间被限制为最小值5秒
+        assertEquals(999, response.getMindset());
+        assertEquals(999, response.getComprehension());
+        assertEquals(25, response.getReductionTime());  // 被限制为25秒
+        assertEquals(5, response.getFinalTime());       // 被限制为5秒
+    }
+
+    @Test
+    void testGetMeditationTime_NullAttributes() throws Exception {
+        // 测试属性为null的情况（应该当作0处理）
+        when(characterService.getById(1L)).thenReturn(character);
+        character.setMindset(null);
+        character.setComprehension(null);
+
+        MeditationTimeResponse response = cultivationService.getMeditationTime(1L);
+
+        // null值应该被当作0处理
+        assertEquals(30, response.getBaseTime());
+        assertEquals(0, response.getMindset());       // null转为0
+        assertEquals(0, response.getComprehension()); // null转为0
+        assertEquals(0, response.getReductionTime());
+        assertEquals(30, response.getFinalTime());
+    }
+
+    @Test
+    void testGetMeditationTime_DifferentCoefficientConfig() throws Exception {
+        // 测试不同的系数配置
+        // 修改精神系数为0.1，悟性系数为0.02
+        MeditationProperties customConfig = new MeditationProperties();
+        customConfig.setBaseTime(30);
+        customConfig.setMindsetReductionCoefficient(0.1);   // 精神系数更高
+        customConfig.setComprehensionReductionCoefficient(0.02);  // 悟性系数更低
+        customConfig.setMinTime(5);
+
+        // 使用反射注入自定义配置
+        Field meditationField = CultivationServiceImpl.class.getDeclaredField("meditationProperties");
+        meditationField.setAccessible(true);
+        meditationField.set(cultivationService, customConfig);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        character.setMindset(100);
+        character.setComprehension(100);
+
+        MeditationTimeResponse response = cultivationService.getMeditationTime(1L);
+
+        // 精神减免: 100 × 0.1 = 10秒
+        // 悟性减免: 100 × 0.02 = 2秒
+        // 总减免: 12秒
+        // 最终时间: 30 - 12 = 18秒
+        assertEquals(100, response.getMindset());
+        assertEquals(100, response.getComprehension());
+        assertEquals(12, response.getReductionTime());
+        assertEquals(18, response.getFinalTime());
+    }
+
+    @Test
+    void testGetMeditationTime_AllAttributesFull() throws Exception {
+        // 测试气血、体力、灵力都已满的情况
+        when(characterService.getById(1L)).thenReturn(character);
+        character.setHealth(100);
+        character.setHealthMax(100);
+        character.setStamina(100);
+        character.setStaminaMax(100);
+        character.setSpiritualPower(100);
+        character.setSpiritualPowerMax(100);
+        character.setMindset(100);
+        character.setComprehension(100);
+
+        MeditationTimeResponse response = cultivationService.getMeditationTime(1L);
+
+        // 三个属性都满，应该返回0秒
+        assertEquals(0, response.getBaseTime());
+        assertEquals(0, response.getMindset());
+        assertEquals(0, response.getComprehension());
+        assertEquals(0, response.getReductionTime());
+        assertEquals(0, response.getFinalTime());
+    }
+
+    @Test
+    void testGetMeditationTime_OneAttributeNotFull() throws Exception {
+        // 测试只有一个属性未满的情况
+        when(characterService.getById(1L)).thenReturn(character);
+        character.setHealth(100);      // 气血满
+        character.setHealthMax(100);
+        character.setStamina(99);       // 体力差1点未满
+        character.setStaminaMax(100);
+        character.setSpiritualPower(100); // 灵力满
+        character.setSpiritualPowerMax(100);
+        character.setMindset(50);
+        character.setComprehension(50);
+
+        MeditationTimeResponse response = cultivationService.getMeditationTime(1L);
+
+        // 有一个属性未满，应该正常计算时间
+        // 减免: 50 × 0.05 + 50 × 0.05 = 5秒
+        // 最终时间: 30 - 5 = 25秒
+        assertEquals(30, response.getBaseTime());
+        assertEquals(50, response.getMindset());
+        assertEquals(50, response.getComprehension());
+        assertEquals(5, response.getReductionTime());
+        assertEquals(25, response.getFinalTime());
+    }
+
+    @Test
+    void testGetMeditationTime_HealthNotFull() throws Exception {
+        // 测试气血未满的情况
+        when(characterService.getById(1L)).thenReturn(character);
+        character.setHealth(50);       // 气血未满
+        character.setHealthMax(100);
+        character.setStamina(100);     // 体力满
+        character.setStaminaMax(100);
+        character.setSpiritualPower(100); // 灵力满
+        character.setSpiritualPowerMax(100);
+        character.setMindset(200);
+        character.setComprehension(100);
+
+        MeditationTimeResponse response = cultivationService.getMeditationTime(1L);
+
+        // 气血未满，应该正常计算时间
+        // 减免: 200 × 0.05 + 100 × 0.05 = 15秒
+        // 最终时间: 30 - 15 = 15秒
+        assertEquals(30, response.getBaseTime());
+        assertEquals(200, response.getMindset());
+        assertEquals(100, response.getComprehension());
+        assertEquals(15, response.getReductionTime());
+        assertEquals(15, response.getFinalTime());
+    }
+
+    @Test
+    void meditation_WithCustomRecoveryRatio() throws Exception {
+        // 测试自定义恢复比例
+        MeditationProperties customConfig = new MeditationProperties();
+        customConfig.setBaseTime(30);
+        customConfig.setMindsetReductionCoefficient(0.05);
+        customConfig.setComprehensionReductionCoefficient(0.05);
+        customConfig.setMinTime(5);
+        customConfig.setRecoveryRatio(0.5);  // 设置为50%
+
+        // 使用反射注入自定义配置
+        Field field = CultivationServiceImpl.class.getDeclaredField("meditationProperties");
+        field.setAccessible(true);
+        field.set(cultivationService, customConfig);
+
+        character.setHealth(50);
+        character.setHealthMax(100);
+        character.setStamina(50);
+        character.setStaminaMax(100);
+        character.setSpiritualPower(50);
+        character.setSpiritualPowerMax(100);
+        character.setCurrentState("闲置");
+
+        when(characterService.getById(1L)).thenReturn(character);
+
+        MeditationRequest request = new MeditationRequest();
+        request.setCharacterId(1L);
+        MeditationResponse response = cultivationService.meditation(request);
+
+        // 验证恢复50%而不是默认的30%
+        assertEquals(50, response.getHealthRecovered());      // 100 * 0.5 = 50
+        assertEquals(50, response.getStaminaRecovered());     // 100 * 0.5 = 50
+        assertEquals(50, response.getSpiritualPowerRecovered()); // 100 * 0.5 = 50
+    }
+
+    @Test
+    void startCultivation_WithCustomExpBonus() throws Exception {
+        // 测试自定义经验加成配置
+        CultivationProperties customConfig = new CultivationProperties();
+        customConfig.getBaseExp().setMin(100);
+        customConfig.getBaseExp().setMax(300);
+        customConfig.getBonus().setComprehension(0.002);  // 悟性加翻倍
+        customConfig.getBonus().setRealmPerLevel(0.2);    // 境界加成翻倍
+        customConfig.setLevelMultiplier(1.0);              // 层次系数翻倍
+        customConfig.setStaminaCost(5);
+
+        // 使用反射注入自定义配置
+        Field field = CultivationServiceImpl.class.getDeclaredField("cultivationProperties");
+        field.setAccessible(true);
+        field.set(cultivationService, customConfig);
+
+        character.setComprehension(100);
+        character.setRealmLevel(1);
+        character.setCurrentState("闲置");
+        character.setStamina(100);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(realmService.getById(1)).thenReturn(realm);
+        when(characterService.updateCharacter(any())).thenReturn(true);
+        when(cultivationRecordMapper.insert(any())).thenReturn(1);
+
+        CultivationRequest request = new CultivationRequest();
+        request.setCharacterId(1L);
+
+        CultivationResponse response = cultivationService.startCultivation(request);
+
+        // 验证经验值在新的范围内（100-300）且加成生效
+        // 基础经验: 100-300
+        // 悟性加成: 1 + 100 * 0.002 = 1.2
+        // 境界加成: 1 + (1-1) * 0.2 = 1.0
+        // 预期范围: 100 * 1.2 * 1.0 = 120 ~ 300 * 1.2 * 1.0 = 360
+        assertTrue(response.getExpGained() >= 120, "经验值应该至少为120");
+        assertTrue(response.getExpGained() <= 360, "经验值应该不超过360");
+        assertEquals(5, response.getStaminaConsumed());
+    }
+
+    @Test
+    void calculateExpGained_HighComprehension() throws Exception {
+        // 测试高悟性角色的经验获取
+        character.setComprehension(500);  // 高悟性
+        character.setRealmLevel(1);
+        character.setCurrentState("闲置");
+        character.setStamina(100);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(realmService.getById(1)).thenReturn(realm);
+        when(characterService.updateCharacter(any())).thenReturn(true);
+        when(cultivationRecordMapper.insert(any())).thenReturn(1);
+
+        CultivationRequest request = new CultivationRequest();
+        request.setCharacterId(1L);
+
+        CultivationResponse response = cultivationService.startCultivation(request);
+
+        // 验证高悟性带来的额外经验
+        // 基础经验: 50-200
+        // 悟性加成: 1 + 500 * 0.001 = 1.5
+        // 境界加成: 1.0
+        // 预期范围: 50 * 1.5 = 75 ~ 200 * 1.5 = 300
+        assertTrue(response.getExpGained() >= 75, "高悟性角色经验值应该至少为75");
+        assertTrue(response.getExpGained() <= 300, "高悟性角色经验值应该不超过300");
+    }
+
+    @Test
+    void calculateRequiredExpForLevel_WithCustomMultiplier() throws Exception {
+        // 测试自定义层次系数
+        CultivationProperties customConfig = new CultivationProperties();
+        customConfig.getBaseExp().setMin(50);
+        customConfig.getBaseExp().setMax(200);
+        customConfig.getBonus().setComprehension(0.001);
+        customConfig.getBonus().setRealmPerLevel(0.1);
+        customConfig.setLevelMultiplier(1.0);  // 层次系数设为1.0（翻倍）
+        customConfig.setStaminaCost(5);
+
+        // 使用反射注入自定义配置
+        Field field = CultivationServiceImpl.class.getDeclaredField("cultivationProperties");
+        field.setAccessible(true);
+        field.set(cultivationService, customConfig);
+
+        character.setExperience(150L);  // 设置初始经验150（修炼获得50-200经验后应该在200-350之间）
+        character.setRealmLevel(1);
+        character.setCurrentState("闲置");
+        character.setStamina(100);
+
+        Realm testRealm = new Realm();
+        testRealm.setId(1);
+        testRealm.setRealmLevel(1);
+        testRealm.setRealmName("Qi Refining");
+        testRealm.setSubLevels(9);
+        testRealm.setRequiredExp(100L);  // 境界基础经验100
+        testRealm.setLevelUpPoints(5);   // 设置升级奖励点数
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(realmService.getById(1)).thenReturn(testRealm);
+        when(characterService.updateCharacter(any())).thenReturn(true);
+        when(cultivationRecordMapper.insert(any())).thenReturn(1);
+
+        CultivationRequest request = new CultivationRequest();
+        request.setCharacterId(1L);
+
+        CultivationResponse response = cultivationService.startCultivation(request);
+
+        // 验证升级（自定义层次系数下）
+        // 1层: 100 * 1.0 = 100
+        // 2层: 100 * (1 + 1 * 1.0) = 200
+        // 3层: 100 * (1 + 2 * 1.0) = 300
+        // 初始经验150 + 修炼获得经验(50-200) = 200-350
+        // 应该能升到2层，不会升到3层
+        assertTrue(response.getLeveledUp(), "应该升级到2层");
+        assertTrue(character.getRealmLevel() >= 2, "境界应该至少为2层");
+        assertTrue(character.getRealmLevel() <= 3, "境界应该不超过3层");
     }
 }

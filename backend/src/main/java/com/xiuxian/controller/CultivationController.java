@@ -9,6 +9,7 @@ import com.xiuxian.dto.request.MeditationRequest;
 import com.xiuxian.dto.response.BreakthroughResponse;
 import com.xiuxian.dto.response.CultivationResponse;
 import com.xiuxian.dto.response.MeditationResponse;
+import com.xiuxian.dto.response.MeditationTimeResponse;
 import com.xiuxian.entity.CultivationRecord;
 import com.xiuxian.service.CultivationService;
 import jakarta.validation.Valid;
@@ -91,6 +92,16 @@ public class CultivationController {
     @PostMapping("/meditation")
     public Result<MeditationResponse> meditation(@Valid @RequestBody MeditationRequest request) {
         MeditationResponse response = cultivationService.meditation(request);
+        return Result.success(response);
+    }
+
+    /**
+     * 获取打坐所需时间
+     * GET /api/v1/cultivation/meditation/time
+     */
+    @GetMapping("/meditation/time")
+    public Result<MeditationTimeResponse> getMeditationTime(@RequestParam("characterId") Long characterId) {
+        MeditationTimeResponse response = cultivationService.getMeditationTime(characterId);
         return Result.success(response);
     }
 }

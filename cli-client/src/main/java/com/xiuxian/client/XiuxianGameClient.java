@@ -631,36 +631,87 @@ public class XiuxianGameClient {
      * 打坐恢复体力和灵力
      */
     private static void startMeditation() throws IOException, InterruptedException {
-        // 刷新角色信息以获取最新数据
-        refreshCharacter();
+        System.out.println("\n--- 打坐恢复 ---");
 
-        if (currentCharacter == null) {
-            System.out.println("\n❌ 角色信息加载失败！");
+        // 1. 获取打坐时间
+        System.out.println("正在计算打坐时间...");
+        String timeResponse = ApiClient.get("/cultivation/meditation/time?characterId=" + currentCharacterId);
+        com.google.gson.JsonObject timeJson = gson.fromJson(timeResponse, com.google.gson.JsonObject.class);
+
+        if (timeJson.has("code") && timeJson.get("code").getAsInt() != 200) {
+            String errorMsg = timeJson.has("message") ? timeJson.get("message").getAsString() : "获取时间失败";
+            System.out.println("\n❌ " + errorMsg);
             pressEnterToContinue();
             return;
         }
 
-        System.out.println("\n--- 打坐恢复 ---");
-        System.out.println("正在打坐中...\n");
+        // 2. 解析时间信息
+        MeditationTimeInfo timeInfo = gson.fromJson(
+            timeJson.getAsJsonObject("data"),
+            MeditationTimeInfo.class
+        );
 
+        // 3. 检查是否需要打坐
+        if (timeInfo.getFinalTime() == 0) {
+            System.out.println("\n✨ 你的气血、体力、灵力均已满，无需打坐！");
+            pressEnterToContinue();
+            return;
+        }
+
+        // 4. 显示倒计时
+        System.out.println("\n" + timeInfo.getMessage());
+        System.out.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+        for (int remaining = timeInfo.getFinalTime(); remaining > 0; remaining--) {
+            // 清除上一行并显示新的倒计时
+            System.out.print("\r        正在打坐中... 剩余时间: " + remaining + " 秒");
+
+            // 根据剩余时间设置提示
+            if (remaining <= 5) {
+                System.out.print(" ⏳ 即将完成");
+            } else if (remaining <= 10) {
+                System.out.print(" 🧘‍♂️ 专心修炼中");
+            } else {
+                System.out.print(" 🌟 心无杂念");
+            }
+
+            Thread.sleep(1000);  // 等待1秒
+        }
+
+        System.out.println("\r        打坐完成！                                        ");
+        System.out.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+        // 4. 执行打坐并获取结果
         JsonObject request = new JsonObject();
         request.addProperty("characterId", currentCharacterId);
-
         String response = ApiClient.post("/cultivation/meditation", request);
-        MeditationResponse result = ApiClient.parseResponse(response, MeditationResponse.class);
 
-        if (result != null) {
-            System.out.println("✅ 打坐完成！");
-            System.out.println(result.getMessage());
-            System.out.println("\n恢复结果:");
-            System.out.println("  恢复气血: " + result.getHealthRecovered());
-            System.out.println("  当前气血: " + result.getCurrentHealth() + "/" + result.getMaxHealth());
-            System.out.println("  恢复体力: " + result.getStaminaRecovered());
-            System.out.println("  当前体力: " + result.getCurrentStamina() + "/" + result.getMaxStamina());
-            System.out.println("  恢复灵力: " + result.getSpiritualPowerRecovered());
-            System.out.println("  当前灵力: " + result.getCurrentSpiritualPower() + "/" + result.getMaxSpiritualPower());
+        JsonObject jsonObject = gson.fromJson(response, JsonObject.class);
+
+        if (jsonObject.has("code") && jsonObject.get("code").getAsInt() == 200) {
+            if (jsonObject.has("data") && jsonObject.get("data").isJsonObject()) {
+                JsonObject data = jsonObject.getAsJsonObject("data");
+
+                int staminaRecovered = data.has("staminaRecovered") ?
+                    data.get("staminaRecovered").getAsInt() : 0;
+                int spiritualPowerRecovered = data.has("spiritualPowerRecovered") ?
+                    data.get("spiritualPowerRecovered").getAsInt() : 0;
+                int healthRecovered = data.has("healthRecovered") ?
+                    data.get("healthRecovered").getAsInt() : 0;
+
+                System.out.println("\n✅ 打坐完成！");
+                System.out.println("\n┌──────────────────────────────────────┐");
+                System.out.println("│              恢复结果                │");
+                System.out.println("├──────────────────────────────────────┤");
+                System.out.printf("│ 体力恢复: %6d                       │%n", staminaRecovered);
+                System.out.printf("│ 灵力恢复: %6d                       │%n", spiritualPowerRecovered);
+                System.out.printf("│ 气血恢复: %6d                       │%n", healthRecovered);
+                System.out.println("└──────────────────────────────────────┘");
+            }
         } else {
-            System.out.println("❌ 打坐失败！");
+            String errorMsg = jsonObject.has("message") ?
+                jsonObject.get("message").getAsString() : "打坐失败";
+            System.out.println("\n❌ " + errorMsg);
         }
 
         pressEnterToContinue();
