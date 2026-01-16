@@ -39,8 +39,13 @@ public class AlchemyResponse {
         response.setCreatedAt(record.getCreatedAt());
 
         if (record.getSuccess()) {
-            response.setMessage(String.format("炼丹成功！获得 %s(%s) x%d，炼丹经验 +%d",
-                    pill.getPillName(), record.getResultQuality(), record.getQuantity(), record.getExperienceGained()));
+            if (pill != null) {
+                response.setMessage(String.format("炼丹成功！获得 %s(%s) x%d，炼丹经验 +%d",
+                        pill.getPillName(), record.getResultQuality(), record.getQuantity(), record.getExperienceGained()));
+            } else {
+                response.setMessage(String.format("炼丹成功！获得 %s x%d，炼丹经验 +%d",
+                        record.getResultQuality(), record.getQuantity(), record.getExperienceGained()));
+            }
         } else {
             response.setMessage(String.format("炼丹失败，材料损失，炼丹经验 +%d", record.getExperienceGained()));
         }
