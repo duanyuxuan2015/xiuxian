@@ -9,6 +9,8 @@ public class PillRecipeResponse {
     private Long recipeId;
     private String recipeName;
     private String pillName;
+    private String effectType;
+    private String quality;
     private Integer recipeTier;
     private Integer alchemyLevelRequired;
     private Integer baseSuccessRate;
@@ -37,6 +39,8 @@ public class PillRecipeResponse {
     public Long getRecipeId() { return recipeId; }
     public String getRecipeName() { return recipeName; }
     public String getPillName() { return pillName; }
+    public String getEffectType() { return effectType; }
+    public String getQuality() { return quality; }
     public Integer getRecipeTier() { return recipeTier; }
     public Integer getAlchemyLevelRequired() { return alchemyLevelRequired; }
     public Integer getBaseSuccessRate() { return baseSuccessRate; }
@@ -45,6 +49,8 @@ public class PillRecipeResponse {
     public void setRecipeId(Long recipeId) { this.recipeId = recipeId; }
     public void setRecipeName(String recipeName) { this.recipeName = recipeName; }
     public void setPillName(String pillName) { this.pillName = pillName; }
+    public void setEffectType(String effectType) { this.effectType = effectType; }
+    public void setQuality(String quality) { this.quality = quality; }
     public void setRecipeTier(Integer recipeTier) { this.recipeTier = recipeTier; }
     public void setAlchemyLevelRequired(Integer alchemyLevelRequired) { this.alchemyLevelRequired = alchemyLevelRequired; }
     public void setBaseSuccessRate(Integer baseSuccessRate) { this.baseSuccessRate = baseSuccessRate; }

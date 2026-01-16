@@ -1332,33 +1332,165 @@ public class XiuxianGameClient {
      */
     private static void startAlchemy() throws IOException, InterruptedException {
         System.out.println("\n--- 开始炼丹 ---");
-        System.out.print("请输入丹方ID: ");
-        String recipeIdStr = scanner.nextLine();
 
+        // 1. 获取所有可用丹方
+        String response = ApiClient.get("/alchemy/recipes/" + currentCharacterId);
+        Type listType = new TypeToken<List<PillRecipeResponse>>(){}.getType();
+
+        JsonObject jsonObject = gson.fromJson(response, JsonObject.class);
+        if (!jsonObject.has("data") || !jsonObject.get("data").isJsonArray()) {
+            System.out.println("\n❌ 获取丹方列表失败！");
+            pressEnterToContinue();
+            return;
+        }
+
+        JsonArray array = jsonObject.get("data").getAsJsonArray();
+        List<PillRecipeResponse> allRecipes = gson.fromJson(array, listType);
+
+        if (allRecipes == null || allRecipes.isEmpty()) {
+            System.out.println("\n暂无可用的丹方！请提升炼丹等级或境界等级。");
+            pressEnterToContinue();
+            return;
+        }
+
+        // 2. 按丹药类型分组
+        Map<String, List<PillRecipeResponse>> recipesByType = new java.util.LinkedHashMap<>();
+        for (PillRecipeResponse recipe : allRecipes) {
+            String effectType = recipe.getEffectType();
+            if (effectType == null || effectType.isEmpty()) {
+                effectType = "其他";
+            }
+            recipesByType.computeIfAbsent(effectType, k -> new ArrayList<>()).add(recipe);
+        }
+
+        // 3. 显示丹药类型选择菜单
+        System.out.println("\n请选择要炼制的丹药类型：");
+        System.out.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+        java.util.List<String> typeList = new java.util.ArrayList<>(recipesByType.keySet());
+        for (int i = 0; i < typeList.size(); i++) {
+            String type = typeList.get(i);
+            int count = recipesByType.get(type).size();
+            System.out.printf("  [%d] %s (%d个丹方)%n", i + 1, type, count);
+        }
+        System.out.println("  [0] 返回");
+        System.out.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        System.out.print("\n请选择类型序号: ");
+
+        String typeChoice = scanner.nextLine().trim();
+        if ("0".equals(typeChoice)) {
+            return;
+        }
+
+        int typeIndex;
         try {
-            Long recipeId = Long.parseLong(recipeIdStr);
-
-            JsonObject request = new JsonObject();
-            request.addProperty("characterId", currentCharacterId);
-            request.addProperty("recipeId", recipeId);
-
-            String response = ApiClient.post("/alchemy/start", request);
-            AlchemyResponse result = ApiClient.parseResponse(response, AlchemyResponse.class);
-
-            if (result != null) {
-                if (result.isSuccess()) {
-                    System.out.println("\n✅ 炼丹成功！");
-                    System.out.println("获得丹药: " + result.getPillName());
-                    System.out.println("品质: " + result.getResultQuality());
-                    System.out.println("数量: " + result.getQuantity());
-                    System.out.println("获得经验: " + result.getExpGained());
-                } else {
-                    System.out.println("\n❌ 炼丹失败！");
-                    System.out.println("获得经验: " + result.getExpGained());
-                }
+            typeIndex = Integer.parseInt(typeChoice) - 1;
+            if (typeIndex < 0 || typeIndex >= typeList.size()) {
+                System.out.println("\n❌ 无效的选择！");
+                pressEnterToContinue();
+                return;
             }
         } catch (NumberFormatException e) {
-            System.out.println("\n❌ 无效的丹方ID！");
+            System.out.println("\n❌ 无效的输入！");
+            pressEnterToContinue();
+            return;
+        }
+
+        // 4. 显示该类型的丹方列表
+        String selectedType = typeList.get(typeIndex);
+        List<PillRecipeResponse> typeRecipes = recipesByType.get(selectedType);
+
+        System.out.println("\n" + selectedType + " - 丹方列表");
+        System.out.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        System.out.println("序号  丹方名称              阶位  成功率  需要炼丹等级  需要材料");
+        System.out.println("─────────────────────────────────────────────────────────");
+
+        for (int i = 0; i < typeRecipes.size(); i++) {
+            PillRecipeResponse r = typeRecipes.get(i);
+
+            // 构建材料列表字符串
+            StringBuilder materialsStr = new StringBuilder();
+            if (r.getMaterials() != null && !r.getMaterials().isEmpty()) {
+                for (int j = 0; j < r.getMaterials().size(); j++) {
+                    PillRecipeResponse.MaterialRequirement m = r.getMaterials().get(j);
+                    materialsStr.append(m.getMaterialName())
+                            .append("×")
+                            .append(m.getRequiredQuantity());
+                    if (j < r.getMaterials().size() - 1) {
+                        materialsStr.append(", ");
+                    }
+                }
+            } else {
+                materialsStr.append("无");
+            }
+
+            // 检查材料是否足够
+            boolean allSufficient = true;
+            if (r.getMaterials() != null) {
+                for (PillRecipeResponse.MaterialRequirement m : r.getMaterials()) {
+                    if (!m.isSufficient()) {
+                        allSufficient = false;
+                        break;
+                    }
+                }
+            }
+
+            String statusMark = allSufficient ? "" : " [材料不足]";
+
+            System.out.printf("%-4d  %-20s  %-4d  %-6d  %-12d  %s%s%n",
+                    i + 1,
+                    r.getRecipeName(),
+                    r.getRecipeTier(),
+                    r.getBaseSuccessRate(),
+                    r.getAlchemyLevelRequired(),
+                    materialsStr.toString(),
+                    statusMark);
+        }
+
+        System.out.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        System.out.print("\n请选择丹方序号 (输入0返回): ");
+
+        String recipeChoice = scanner.nextLine().trim();
+        if ("0".equals(recipeChoice)) {
+            return;
+        }
+
+        int recipeIndex;
+        try {
+            recipeIndex = Integer.parseInt(recipeChoice) - 1;
+            if (recipeIndex < 0 || recipeIndex >= typeRecipes.size()) {
+                System.out.println("\n❌ 无效的选择！");
+                pressEnterToContinue();
+                return;
+            }
+        } catch (NumberFormatException e) {
+            System.out.println("\n❌ 无效的输入！");
+            pressEnterToContinue();
+            return;
+        }
+
+        // 5. 执行炼丹
+        PillRecipeResponse selectedRecipe = typeRecipes.get(recipeIndex);
+        Long recipeId = selectedRecipe.getRecipeId();
+
+        JsonObject request = new JsonObject();
+        request.addProperty("characterId", currentCharacterId);
+        request.addProperty("recipeId", recipeId);
+
+        String alchemyResponse = ApiClient.post("/alchemy/start", request);
+        AlchemyResponse result = ApiClient.parseResponse(alchemyResponse, AlchemyResponse.class);
+
+        if (result != null) {
+            if (result.isSuccess()) {
+                System.out.println("\n✅ 炼丹成功！");
+                System.out.println("获得丹药: " + result.getPillName());
+                System.out.println("品质: " + result.getResultQuality());
+                System.out.println("数量: " + result.getQuantity());
+                System.out.println("获得经验: " + result.getExpGained());
+            } else {
+                System.out.println("\n❌ 炼丹失败！");
+                System.out.println("获得经验: " + result.getExpGained());
+            }
         }
 
         pressEnterToContinue();
