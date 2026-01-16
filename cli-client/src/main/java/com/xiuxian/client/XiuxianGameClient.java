@@ -4171,10 +4171,16 @@ public class XiuxianGameClient {
 
                     // 根据物品类型显示不同的表头
                     boolean showEquipmentDetail = itemType == null || itemType.equals("equipment");
+                    boolean isPillOnly = itemType != null && itemType.equals("pill");
+
                     if (showEquipmentDetail) {
                         System.out.println("┌────┬──────────────────┬──────────────────────────────────────────────────────────────────────┬──────┐");
                         System.out.println("│ ID │ 物品名称          │ 详细信息                                                         │ 数量 │");
                         System.out.println("├────┼──────────────────┼──────────────────────────────────────────────────────────────────────┼──────┤");
+                    } else if (isPillOnly) {
+                        System.out.println("──────────────────────────────────────────────────────────────────");
+                        System.out.printf("%-4s  %-18s  %-18s  %-12s  %-6s\n", "ID", "物品名称", "详细信息", "效果", "数量");
+                        System.out.println("──────────────────────────────────────────────────────────────────");
                     } else {
                         System.out.println("────────────────────────────────────────────────────────────");
                         System.out.printf("%-4s  %-20s  %-20s  %-6s\n", "ID", "物品名称", "详细信息", "数量");
@@ -4214,9 +4220,22 @@ public class XiuxianGameClient {
                                    item.has("description") ? item.get("description").getAsString() : type;
                         }
 
+                        // 格式化丹药效果
+                        String effectStr = "-";
+                        if ("pill".equals(type)) {
+                            String effectType = item.has("effectType") ? item.get("effectType").getAsString() : "";
+                            Integer effectValue = item.has("effectValue") ? item.get("effectValue").getAsInt() : 0;
+                            if (effectType != null && !effectType.isEmpty()) {
+                                effectStr = effectType + "+" + effectValue;
+                            }
+                        }
+
                         if (showEquipmentDetail) {
                             System.out.printf("│ %2d │ %-16s │ %-64s │ %4d │%n",
                                     (i + 1), name, detail, quantity);
+                        } else if (isPillOnly) {
+                            System.out.printf("%-4d  %-18s  %-18s  %-12s  %-6d\n",
+                                    (i + 1), name, detail, effectStr, quantity);
                         } else {
                             System.out.printf("%-4d  %-20s  %-20s  %-6d\n",
                                     (i + 1), name, detail, quantity);
@@ -4225,6 +4244,8 @@ public class XiuxianGameClient {
 
                     if (showEquipmentDetail) {
                         System.out.println("└────┴──────────────────┴──────────────────────────────────────────────────────────────────────┴──────┘");
+                    } else if (isPillOnly) {
+                        System.out.println("──────────────────────────────────────────────────────────────────");
                     } else {
                         System.out.println("────────────────────────────────────────────────────────────");
                     }

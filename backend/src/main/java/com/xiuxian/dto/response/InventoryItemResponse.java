@@ -28,6 +28,10 @@ public class InventoryItemResponse {
     private Integer baseScore;
     private Integer enhancementLevel;
 
+    // 丹药效果（仅当 itemType=pill 时有值）
+    private String effectType;
+    private Integer effectValue;
+
     public InventoryItemResponse() {
     }
 
@@ -120,6 +124,13 @@ public class InventoryItemResponse {
 
     public Integer getEnhancementLevel() { return enhancementLevel; }
     public void setEnhancementLevel(Integer enhancementLevel) { this.enhancementLevel = enhancementLevel; }
+
+    // 丹药效果的 getter 和 setter
+    public String getEffectType() { return effectType; }
+    public void setEffectType(String effectType) { this.effectType = effectType; }
+
+    public Integer getEffectValue() { return effectValue; }
+    public void setEffectValue(Integer effectValue) { this.effectValue = effectValue; }
 
     @Override
     public String toString() {

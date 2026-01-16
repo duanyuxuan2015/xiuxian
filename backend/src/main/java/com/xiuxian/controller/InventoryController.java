@@ -143,6 +143,9 @@ public class InventoryController {
                         response.setItemDetail(String.format("%s阶 | %s",
                                 pill.getPillTier(),
                                 pill.getQuality()));
+                        // 设置丹药效果
+                        response.setEffectType(pill.getEffectType());
+                        response.setEffectValue(pill.getEffectValue());
                     }
                     break;
 
