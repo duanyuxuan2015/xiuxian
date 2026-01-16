@@ -119,6 +119,17 @@ app:
   idle-combat:
     max-battles: 5  # 挂机最大战斗轮数
 
+  # 体力消耗配置（统一管理各场景体力消耗）
+  stamina-costs:
+    cultivation: 5           # 修炼消耗体力
+    combat-multiplier: 1.0   # 战斗体力消耗倍数（乘以妖兽基础消耗）
+    combat-defeat-ratio: 0.5 # 战斗失败时体力消耗比例（50%）
+    alchemy: 0               # 炼丹消耗体力（0=不消耗）
+    forging: 0               # 炼器消耗体力（0=不消耗）
+    exploration: 0           # 探索消耗体力（0=不消耗）
+    meditation: 0            # 打坐消耗体力（0=不消耗）
+    breakthrough: 0          # 突破消耗体力（0=不消耗）
+
   # 战斗配置
   combat:
     max-turns: 50                      # 最大战斗回合数
