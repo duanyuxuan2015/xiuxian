@@ -12,6 +12,7 @@ import com.xiuxian.entity.Skill;
 import com.xiuxian.mapper.CharacterSkillMapper;
 import com.xiuxian.mapper.SkillMapper;
 import com.xiuxian.service.CharacterService;
+import com.xiuxian.service.InventoryService;
 import com.xiuxian.service.RealmService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,6 +44,8 @@ public class SkillServiceImplTest {
     private CharacterSkillMapper characterSkillMapper;
     @Mock
     private RealmService realmService;
+    @Mock
+    private InventoryService inventoryService;
 
     @InjectMocks
     private SkillServiceImpl skillService;
@@ -90,6 +93,10 @@ public class SkillServiceImplTest {
 
         // 默认mock：realmService返回realm对象
         when(realmService.getById(any())).thenReturn(realm);
+
+        // 默认mock：inventoryService返回有足够技能书
+        lenient().when(inventoryService.hasEnoughItem(anyLong(), eq("skill"), anyLong(), eq(1))).thenReturn(true);
+        lenient().when(inventoryService.removeItem(anyLong(), eq("skill"), anyLong(), eq(1))).thenReturn(true);
 
         charSkill = new CharacterSkill();
         charSkill.setCharacterSkillId(1L);
@@ -681,5 +688,82 @@ public class SkillServiceImplTest {
         } catch (BusinessException e) {
             assertEquals(7002, e.getCode());
         }
+    }
+
+    // ==================== 技能学习背包消耗测试用例 ====================
+
+    @Test
+    void learnSkill_NoSkillBookInInventory_ThrowsException() {
+        // 测试背包中没有技能书时无法学习
+        LearnSkillRequest request = new LearnSkillRequest();
+        request.setCharacterId(1L);
+        request.setSkillId(1L);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(skillMapper.selectById(1L)).thenReturn(skill);
+        when(characterSkillMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(null);
+        // Mock背包中没有技能书
+        when(inventoryService.hasEnoughItem(1L, "skill", 1L, 1)).thenReturn(false);
+
+        try {
+            skillService.learnSkill(request);
+            fail("Should throw BusinessException");
+        } catch (BusinessException e) {
+            assertEquals(7010, e.getCode());
+            assertTrue(e.getMessage().contains("背包中没有该技能书"));
+        }
+
+        // 验证没有调用学习技能的保存操作
+        verify(characterSkillMapper, never()).insert(any(CharacterSkill.class));
+    }
+
+    @Test
+    void learnSkill_WithSkillBook_ConsumesSkillBook() {
+        // 测试有技能书时学习成功并消耗技能书
+        LearnSkillRequest request = new LearnSkillRequest();
+        request.setCharacterId(1L);
+        request.setSkillId(1L);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(skillMapper.selectById(1L)).thenReturn(skill);
+        when(characterSkillMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(null);
+        when(characterSkillMapper.insert(any(CharacterSkill.class))).thenReturn(1);
+        // Mock背包中有技能书
+        when(inventoryService.hasEnoughItem(1L, "skill", 1L, 1)).thenReturn(true);
+        when(inventoryService.removeItem(1L, "skill", 1L, 1)).thenReturn(true);
+
+        SkillResponse response = skillService.learnSkill(request);
+
+        assertNotNull(response);
+        assertEquals("Fireball", response.getSkillName());
+
+        // 验证消耗了技能书
+        verify(inventoryService).removeItem(1L, "skill", 1L, 1);
+    }
+
+    @Test
+    void learnSkill_SkillBookConsumptionFails_StillSucceeds() {
+        // 测试技能书消耗失败但技能仍然学习成功（记录警告）
+        LearnSkillRequest request = new LearnSkillRequest();
+        request.setCharacterId(1L);
+        request.setSkillId(1L);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(skillMapper.selectById(1L)).thenReturn(skill);
+        when(characterSkillMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(null);
+        when(characterSkillMapper.insert(any(CharacterSkill.class))).thenReturn(1);
+        // Mock背包中有技能书，但消耗失败
+        when(inventoryService.hasEnoughItem(1L, "skill", 1L, 1)).thenReturn(true);
+        when(inventoryService.removeItem(1L, "skill", 1L, 1)).thenReturn(false);
+
+        SkillResponse response = skillService.learnSkill(request);
+
+        assertNotNull(response);
+        assertEquals("Fireball", response.getSkillName());
+
+        // 验证尝试消耗技能书
+        verify(inventoryService).removeItem(1L, "skill", 1L, 1);
+        // 验证技能仍然被学习
+        verify(characterSkillMapper).insert(any(CharacterSkill.class));
     }
 }

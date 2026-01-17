@@ -1914,19 +1914,7 @@ public class XiuxianGameClient {
             }
             System.out.println("└──────┴──────────────────┴─────────────────────────────┴──────────┘");
 
-            // 显示技能ID列表
-            System.out.println("\n📋 可学习的技能ID:");
-            System.out.println("─────────────────────────────────");
-            for (int i = 0; i < skillItems.size(); i++) {
-                JsonObject item = skillItems.get(i);
-                Long itemId = item.has("itemId") ? item.get("itemId").getAsLong() : 0L;
-                String itemName = item.has("itemName") && !item.get("itemName").getAsString().isEmpty() ?
-                                 item.get("itemName").getAsString() : "未知技能";
-
-                String status = learnedSkillIds.contains(itemId) ? " [已学]" : "";
-                System.out.printf("  [%d] %s%s\n", itemId, itemName, status);
-            }
-            System.out.println("\n💡 提示：请输入技能ID（方括号中的数字）进行学习");
+            System.out.println("\n💡 提示：请输入表格中的序号（第一列的数字）进行学习");
         } else {
             System.out.println("\n背包中没有技能物品！");
             pressEnterToContinue();
@@ -1937,11 +1925,24 @@ public class XiuxianGameClient {
         System.out.println("\n📊 当前角色信息:");
         System.out.println("  境界等级: " + currentCharacter.getRealmLevel() + " (" + getRealmNameByLevel(currentCharacter.getRealmLevel()) + ")");
 
-        System.out.print("\n请输入技能ID: ");
-        String skillIdStr = scanner.nextLine();
+        System.out.print("\n请输入序号: ");
+        String indexStr = scanner.nextLine();
 
         try {
-            Long skillId = Long.parseLong(skillIdStr);
+            int index = Integer.parseInt(indexStr) - 1; // 转换为0-based索引
+
+            if (index < 0 || index >= skillItems.size()) {
+                System.out.println("\n❌ 无效的序号！请输入1-" + skillItems.size() + "之间的数字");
+                pressEnterToContinue();
+                return;
+            }
+
+            // 根据序号获取对应的技能ID
+            JsonObject selectedItem = skillItems.get(index);
+            Long skillId = selectedItem.has("itemId") ? selectedItem.get("itemId").getAsLong() : 0L;
+            String skillName = selectedItem.has("itemName") ? selectedItem.get("itemName").getAsString() : "未知技能";
+
+            System.out.println("\n已选择: " + skillName + " (技能ID: " + skillId + ")");
 
             JsonObject request = new JsonObject();
             request.addProperty("characterId", currentCharacterId);
@@ -1957,9 +1958,9 @@ public class XiuxianGameClient {
                     // 学习成功
                     if (responseObj.has("data") && !responseObj.get("data").isJsonNull()) {
                         JsonObject data = responseObj.get("data").getAsJsonObject();
-                        String skillName = data.has("skillName") ? data.get("skillName").getAsString() : "未知技能";
+                        String learnedSkillName = data.has("skillName") ? data.get("skillName").getAsString() : "未知技能";
                         System.out.println("\n✅ 学习成功！");
-                        System.out.println("技能: " + skillName);
+                        System.out.println("技能: " + learnedSkillName);
                     }
                 } else {
                     // 学习失败，显示错误信息
@@ -1980,7 +1981,7 @@ public class XiuxianGameClient {
                 }
             }
         } catch (NumberFormatException e) {
-            System.out.println("\n❌ 无效的技能ID！");
+            System.out.println("\n❌ 无效的序号！请输入1-" + skillItems.size() + "之间的数字");
         }
 
         pressEnterToContinue();

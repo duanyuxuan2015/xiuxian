@@ -19,6 +19,7 @@ import com.xiuxian.entity.Skill;
 import com.xiuxian.mapper.CharacterSkillMapper;
 import com.xiuxian.mapper.SkillMapper;
 import com.xiuxian.service.CharacterService;
+import com.xiuxian.service.InventoryService;
 import com.xiuxian.service.RealmService;
 import com.xiuxian.service.SkillService;
 import org.slf4j.Logger;
@@ -45,13 +46,16 @@ public class SkillServiceImpl extends ServiceImpl<CharacterSkillMapper, Characte
     private final CharacterService characterService;
     private final SkillMapper skillMapper;
     private final RealmService realmService;
+    private final InventoryService inventoryService;
 
     public SkillServiceImpl(@Lazy CharacterService characterService,
                             SkillMapper skillMapper,
-                            RealmService realmService) {
+                            RealmService realmService,
+                            @Lazy InventoryService inventoryService) {
         this.characterService = characterService;
         this.skillMapper = skillMapper;
         this.realmService = realmService;
+        this.inventoryService = inventoryService;
     }
 
     @Override
@@ -171,7 +175,12 @@ public class SkillServiceImpl extends ServiceImpl<CharacterSkillMapper, Characte
             throw new BusinessException(7003, "已学习该技能");
         }
 
-        // 5. 学习技能
+        // 5. 检查背包中是否有该技能书
+        if (!inventoryService.hasEnoughItem(characterId, "skill", skillId, 1)) {
+            throw new BusinessException(7010, "背包中没有该技能书，无法学习");
+        }
+
+        // 6. 学习技能
         CharacterSkill charSkill = new CharacterSkill();
         charSkill.setCharacterId(characterId);
         charSkill.setSkillId(skillId);
@@ -183,6 +192,16 @@ public class SkillServiceImpl extends ServiceImpl<CharacterSkillMapper, Characte
 
         logger.info("学习技能: characterId={}, skillId={}, skillName={}",
                 characterId, skillId, skill.getSkillName());
+
+        // 7. 自动消耗背包中的技能书
+        boolean consumed = inventoryService.removeItem(characterId, "skill", skillId, 1);
+        if (consumed) {
+            logger.info("自动消耗技能书: characterId={}, skillId={}, skillName={}",
+                    characterId, skillId, skill.getSkillName());
+        } else {
+            logger.warn("技能书消耗失败（但技能已学习）: characterId={}, skillId={}",
+                    characterId, skillId);
+        }
 
         return SkillResponse.fromEntity(skill, charSkill);
     }
