@@ -28,3 +28,8 @@ Java 17+: Follow standard conventions
 
 <!-- MANUAL ADDITIONS START -->
 <!-- MANUAL ADDITIONS END -->
+# Custom Skills
+- **Save Prompt**:
+  - Description: Save a prompt or note to the project's prompt log.
+  - Command: echo "[$(date)] $1" >> prompts.md && echo "Prompt saved."
+  - Usage: type "save 'your prompt here'"

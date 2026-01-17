@@ -24,4 +24,10 @@ public interface MonsterDropService extends IService<MonsterDrop> {
      * @return 掉落的装备ID列表
      */
     List<Long> rollEquipmentDrops(Long monsterId, Long characterId);
+
+    /**
+     * 删除怪物的所有掉落配置
+     * @param monsterId 怪物ID
+     */
+    void deleteDropsByMonsterId(Long monsterId);
 }

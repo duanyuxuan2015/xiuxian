@@ -92,4 +92,13 @@ public class MonsterDropServiceImpl extends ServiceImpl<MonsterDropMapper, Monst
 
         return droppedEquipmentIds;
     }
+
+    @Override
+    @Transactional
+    public void deleteDropsByMonsterId(Long monsterId) {
+        LambdaQueryWrapper<MonsterDrop> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(MonsterDrop::getMonsterId, monsterId);
+        this.remove(wrapper);
+        logger.info("删除怪物掉落配置: monsterId={}", monsterId);
+    }
 }
