@@ -403,4 +403,22 @@ public class CharacterServiceImpl extends ServiceImpl<CharacterMapper, PlayerCha
 
         return baseDefense + realmDefenseBonus + levelDefenseBonus;
     }
+
+    @Override
+    @Transactional
+    public void recalculateDerivedAttributes(Long characterId) {
+        PlayerCharacter character = this.getById(characterId);
+        if (character == null) {
+            throw new BusinessException(1003, "角色不存在");
+        }
+
+        // 调用私有方法重新计算衍生属性
+        recalculateDerivedAttributes(character);
+
+        // 保存更新
+        this.updateById(character);
+
+        logger.info("重新计算衍生属性: characterId={}, healthMax={}, staminaMax={}, spiritualPowerMax={}",
+                characterId, character.getHealthMax(), character.getStaminaMax(), character.getSpiritualPowerMax());
+    }
 }

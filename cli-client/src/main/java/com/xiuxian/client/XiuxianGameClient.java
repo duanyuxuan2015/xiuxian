@@ -4130,10 +4130,10 @@ public class XiuxianGameClient {
             String choice = readMenuChoice();
 
             switch (choice) {
-                case "1": showInventoryItems(null); break;
-                case "2": showInventoryItems("equipment"); break;
-                case "3": showInventoryItems("material"); break;
-                case "4": showInventoryItems("pill"); break;
+                case "1": showInventoryItems(null, false); break;
+                case "2": showInventoryItems("equipment", false); break;
+                case "3": showInventoryItems("material", false); break;
+                case "4": showInventoryItems("pill", true); break;
                 case "5": showInventorySummary(); break;
                 case "6": sellInventoryItem(); break;
                 case "0": return;
@@ -4145,7 +4145,7 @@ public class XiuxianGameClient {
     /**
      * 显示背包物品
      */
-    private static void showInventoryItems(String itemType) throws IOException, InterruptedException {
+    private static void showInventoryItems(String itemType, boolean enableUseAction) throws IOException, InterruptedException {
         System.out.println("\n--- 背包物品 ---");
 
         String url = "/inventory/character/" + currentCharacterId;
@@ -4257,6 +4257,24 @@ public class XiuxianGameClient {
             System.out.println("\n❌ " + response);
         }
 
+        // 如果是丹药类型且启用了使用操作，询问是否使用
+        if (enableUseAction && "pill".equals(itemType)) {
+            System.out.print("\n是否使用丹药？(y/n): ");
+            String useChoice = scanner.nextLine();
+            if ("y".equalsIgnoreCase(useChoice) || "Y".equals(useChoice)) {
+                // 重新获取丹药列表用于使用
+                String pillResponse = ApiClient.get(url);
+                JsonObject pillJsonObject = gson.fromJson(pillResponse, JsonObject.class);
+                if (pillJsonObject.has("code") && pillJsonObject.get("code").getAsInt() == 200
+                        && pillJsonObject.has("data") && pillJsonObject.get("data").isJsonArray()) {
+                    JsonArray pillsArray = pillJsonObject.get("data").getAsJsonArray();
+                    if (pillsArray.size() > 0) {
+                        usePillItem(pillsArray);
+                    }
+                }
+            }
+        }
+
         pressEnterToContinue();
     }
 
@@ -4291,6 +4309,158 @@ public class XiuxianGameClient {
         }
 
         pressEnterToContinue();
+    }
+
+    /**
+     * 使用丹药
+     */
+    private static void usePillItem(JsonArray pillsArray) throws IOException, InterruptedException {
+        if (pillsArray.size() == 0) {
+            System.out.println("背包中没有丹药！");
+            return;
+        }
+
+        // 显示丹药列表供选择
+        System.out.println("\n========== 丹药列表 ==========");
+        for (int i = 0; i < pillsArray.size(); i++) {
+            JsonObject pill = pillsArray.get(i).getAsJsonObject();
+            String name = pill.has("itemName") ? pill.get("itemName").getAsString() : "未知丹药";
+            String detail = pill.has("itemDetail") ? pill.get("itemDetail").getAsString() : "";
+            int quantity = pill.has("quantity") ? pill.get("quantity").getAsInt() : 0;
+
+            // 获取效果类型
+            String effectType = pill.has("effectType") ? pill.get("effectType").getAsString() : "";
+            String effectStr = "-";
+            if (!effectType.isEmpty() && pill.has("effectValue")) {
+                int effectValue = pill.get("effectValue").getAsInt();
+                effectStr = effectType + "+" + effectValue;
+            }
+
+            System.out.printf("%d. %s | %s | 效果:%s | 数量:%d\n",
+                    i + 1, name, detail, effectStr, quantity);
+        }
+
+        System.out.print("请选择要使用的丹药编号(输入0返回): ");
+        int choice;
+        try {
+            choice = Integer.parseInt(scanner.nextLine());
+        } catch (NumberFormatException e) {
+            System.out.println("输入无效！");
+            return;
+        }
+
+        if (choice == 0) {
+            return;
+        }
+
+        if (choice < 1 || choice > pillsArray.size()) {
+            System.out.println("选择无效！");
+            return;
+        }
+
+        JsonObject selectedPill = pillsArray.get(choice - 1).getAsJsonObject();
+        long inventoryId = selectedPill.has("inventoryId") ? selectedPill.get("inventoryId").getAsLong() : 0L;
+        String pillName = selectedPill.has("itemName") ? selectedPill.get("itemName").getAsString() : "未知丹药";
+        int maxQuantity = selectedPill.has("quantity") ? selectedPill.get("quantity").getAsInt() : 0;
+
+        // 获取效果类型
+        String effectType = selectedPill.has("effectType") ? selectedPill.get("effectType").getAsString() : "";
+
+        // 检查是否可使用
+        if (!isUsablePillType(effectType)) {
+            System.out.printf("该丹药[%s]不能直接使用！\n", effectType);
+            return;
+        }
+
+        // 询问数量
+        System.out.printf("当前数量: %d\n", maxQuantity);
+        System.out.print("请输入使用数量(默认1): ");
+        int quantity;
+        try {
+            String input = scanner.nextLine();
+            quantity = input.isEmpty() ? 1 : Integer.parseInt(input);
+        } catch (NumberFormatException e) {
+            quantity = 1;
+        }
+
+        if (quantity < 1 || quantity > maxQuantity) {
+            System.out.println("数量无效！");
+            return;
+        }
+
+        // 确认使用
+        System.out.printf("\n确认使用 %s x%d？(y/n): ", pillName, quantity);
+        String confirm = scanner.nextLine();
+        if (!"y".equalsIgnoreCase(confirm)) {
+            System.out.println("已取消使用。");
+            return;
+        }
+
+        // 构建请求
+        JsonObject requestBody = new JsonObject();
+        requestBody.addProperty("characterId", currentCharacterId);
+        requestBody.addProperty("inventoryId", inventoryId);
+        requestBody.addProperty("quantity", quantity);
+
+        // 调用API
+        try {
+            String response = ApiClient.post("/inventory/use-pill", requestBody);
+            JsonObject jsonResponse = gson.fromJson(response, JsonObject.class);
+
+            if (jsonResponse.has("code") && jsonResponse.get("code").getAsInt() == 200) {
+                if (jsonResponse.has("data")) {
+                    JsonObject data = jsonResponse.get("data").getAsJsonObject();
+                    System.out.println("\n========== 使用成功 ==========");
+                    System.out.println(data.has("message") ? data.get("message").getAsString() : "使用成功！");
+                    System.out.println("\n更新后的属性：");
+                    displayUpdatedAttributes(data);
+                }
+            } else {
+                String errorMsg = jsonResponse.has("message") ?
+                        jsonResponse.get("message").getAsString() : "使用失败";
+                System.out.println("错误: " + errorMsg);
+            }
+        } catch (Exception e) {
+            System.out.println("使用失败: " + e.getMessage());
+        }
+
+        pressEnterToContinue();
+    }
+
+    /**
+     * 判断丹药是否可使用
+     * 注：
+     * - 增加体质直接增加体质属性
+     * - 增加精神直接增加精神属性
+     * - 解除毒素暂无毒素系统
+     */
+    private static boolean isUsablePillType(String effectType) {
+        return java.util.Set.of("恢复生命", "恢复灵力", "增加经验",
+                "增加体质", "增加精神", "改善资质", "解除毒素").contains(effectType);
+    }
+
+    /**
+     * 显示更新后的属性
+     */
+    private static void displayUpdatedAttributes(JsonObject attributes) {
+        if (attributes.has("currentHealth") && !attributes.get("currentHealth").isJsonNull()) {
+            System.out.printf("- 生命值: %d\n", attributes.get("currentHealth").getAsInt());
+        }
+        if (attributes.has("currentSpirit") && !attributes.get("currentSpirit").isJsonNull()) {
+            System.out.printf("- 灵力值: %d\n", attributes.get("currentSpirit").getAsInt());
+        }
+        if (attributes.has("experience") && !attributes.get("experience").isJsonNull()) {
+            System.out.printf("- 经验值: %d\n", attributes.get("experience").getAsLong());
+        }
+        if (attributes.has("comprehension") && !attributes.get("comprehension").isJsonNull()) {
+            System.out.printf("- 悟性: %d\n", attributes.get("comprehension").getAsInt());
+        }
+        if (attributes.has("attack") && !attributes.get("attack").isJsonNull()) {
+            System.out.printf("- 攻击力: %d\n", attributes.get("attack").getAsInt());
+        }
+        if (attributes.has("defense") && !attributes.get("defense").isJsonNull()) {
+            System.out.printf("- 防御力: %d\n", attributes.get("defense").getAsInt());
+        }
     }
 
     /**

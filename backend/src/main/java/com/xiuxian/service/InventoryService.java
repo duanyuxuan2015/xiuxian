@@ -2,6 +2,7 @@ package com.xiuxian.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.xiuxian.dto.response.SellItemResponse;
+import com.xiuxian.dto.response.UsePillResponse;
 import com.xiuxian.entity.CharacterInventory;
 
 /**
@@ -55,4 +56,13 @@ public interface InventoryService extends IService<CharacterInventory> {
      * @return 售出结果
      */
     SellItemResponse sellItem(Long characterId, Long inventoryId, Integer quantity);
+
+    /**
+     * 使用丹药
+     * @param characterId 角色ID
+     * @param inventoryId 背包物品ID
+     * @param quantity 使用数量
+     * @return 使用结果
+     */
+    UsePillResponse usePill(Long characterId, Long inventoryId, Integer quantity);
 }

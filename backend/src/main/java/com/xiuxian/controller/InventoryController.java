@@ -2,8 +2,10 @@ package com.xiuxian.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.xiuxian.common.response.Result;
+import com.xiuxian.dto.request.UsePillRequest;
 import com.xiuxian.dto.response.InventoryItemResponse;
 import com.xiuxian.dto.response.SellItemResponse;
+import com.xiuxian.dto.response.UsePillResponse;
 import com.xiuxian.entity.CharacterInventory;
 import com.xiuxian.entity.Equipment;
 import com.xiuxian.entity.Material;
@@ -259,6 +261,28 @@ public class InventoryController {
         } catch (Exception e) {
             logger.error("出售物品失败: {}", e.getMessage(), e);
             return Result.error(3000, "出售失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 使用丹药
+     * POST /api/v1/inventory/use-pill
+     */
+    @PostMapping("/use-pill")
+    public Result<UsePillResponse> usePill(@RequestBody UsePillRequest request) {
+        logger.info("收到使用丹药请求: characterId={}, inventoryId={}, quantity={}",
+                request.getCharacterId(), request.getInventoryId(), request.getQuantity());
+
+        try {
+            UsePillResponse response = inventoryService.usePill(
+                    request.getCharacterId(),
+                    request.getInventoryId(),
+                    request.getQuantity()
+            );
+            return Result.success(response);
+        } catch (Exception e) {
+            logger.error("使用丹药失败: {}", e.getMessage(), e);
+            return Result.error(3000, "使用失败: " + e.getMessage());
         }
     }
 

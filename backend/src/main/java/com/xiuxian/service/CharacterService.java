@@ -51,4 +51,12 @@ public interface CharacterService extends IService<PlayerCharacter> {
      * @return 属性点分配响应
      */
     AllocatePointsResponse allocatePoints(AllocatePointsRequest request);
+
+    /**
+     * 重新计算衍生属性（基于五维属性和境界加成）
+     * 根据FR-008要求：体质影响气血和体力，精神影响灵力
+     *
+     * @param characterId 角色ID
+     */
+    void recalculateDerivedAttributes(Long characterId);
 }
