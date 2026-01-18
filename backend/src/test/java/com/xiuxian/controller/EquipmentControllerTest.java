@@ -3,12 +3,12 @@ package com.xiuxian.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiuxian.dto.request.EquipRequest;
 import com.xiuxian.dto.response.EquipmentResponse;
+import com.xiuxian.mapper.EquipmentMapper;
 import com.xiuxian.service.EquipmentService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -25,7 +25,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(controllers = EquipmentController.class)
-@Import(GlobalExceptionHandler.class)
 public class EquipmentControllerTest {
 
     @Autowired
@@ -33,6 +32,9 @@ public class EquipmentControllerTest {
 
     @MockBean
     private EquipmentService equipmentService;
+
+    @MockBean
+    private EquipmentMapper equipmentMapper;
 
     @Autowired
     private ObjectMapper objectMapper;

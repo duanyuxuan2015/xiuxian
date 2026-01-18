@@ -59,6 +59,42 @@ const routes: RouteRecordRaw[] = [
       title: '丹方配置管理',
       requiresAuth: false
     }
+  },
+  {
+    path: '/sect',
+    name: 'SectManagement',
+    component: () => import('@/views/sect/Management.vue'),
+    meta: {
+      title: '宗门配置管理',
+      requiresAuth: false
+    }
+  },
+  {
+    path: '/sect-shop',
+    name: 'SectShopManagement',
+    component: () => import('@/views/sectShop/Management.vue'),
+    meta: {
+      title: '宗门商店配置管理',
+      requiresAuth: false
+    }
+  },
+  {
+    path: '/sect-task',
+    name: 'SectTaskManagement',
+    component: () => import('@/views/sectTask/Management.vue'),
+    meta: {
+      title: '宗门任务配置管理',
+      requiresAuth: false
+    }
+  },
+  {
+    path: '/skill',
+    name: 'SkillManagement',
+    component: () => import('@/views/skill/Management.vue'),
+    meta: {
+      title: '技能配置管理',
+      requiresAuth: false
+    }
   }
 ];
 

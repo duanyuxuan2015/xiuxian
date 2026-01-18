@@ -103,10 +103,23 @@ public class AlchemyServiceImplTest {
         request.setCharacterId(1L);
         request.setRecipeId(1L);
 
+        // 创建一个虚拟材料
+        PillRecipeMaterial recipeMaterial = new PillRecipeMaterial();
+        recipeMaterial.setRecipeId(1L);
+        recipeMaterial.setMaterialId(1L);
+        recipeMaterial.setQuantityRequired(1);
+
+        Material material = new Material();
+        material.setMaterialId(1L);
+        material.setMaterialName("Test Material");
+        material.setMaterialTier(1);
+
         when(characterService.getById(1L)).thenReturn(character);
         when(recipeMapper.selectById(1L)).thenReturn(recipe);
         when(pillMapper.selectById(1L)).thenReturn(pill);
-        when(recipeMaterialMapper.selectList(any())).thenReturn(Collections.emptyList());
+        when(recipeMaterialMapper.selectList(any())).thenReturn(Collections.singletonList(recipeMaterial));
+        when(materialMapper.selectById(1L)).thenReturn(material);
+        when(inventoryService.getItemQuantity(anyLong(), anyString(), anyLong())).thenReturn(10); // 材料足够
 
         // Mocking save to avoid actual DB call (ServiceImpl usually proxies Mapper)
         // Since AlchemyServiceImpl extends ServiceImpl, we might need to mock
@@ -123,7 +136,7 @@ public class AlchemyServiceImplTest {
         AlchemyResponse response = alchemyService.startAlchemy(request);
 
         assertNotNull(response);
-        verify(inventoryService, times(0)).removeItem(anyLong(), anyString(), anyLong(), anyInt());
+        verify(inventoryService, times(1)).removeItem(anyLong(), anyString(), anyLong(), anyInt());
     }
 
     @Test

@@ -7,7 +7,7 @@
 
     <div class="cards-container">
       <el-row :gutter="20">
-        <el-col :xs="24" :sm="12" :md="8">
+        <el-col :xs="24" :sm="12" :md="8" :lg="4">
           <el-card class="config-card" shadow="hover" @click="navigateTo('/monster')">
             <div class="card-icon monster-icon">
               <el-icon :size="60">
@@ -30,7 +30,7 @@
           </el-card>
         </el-col>
 
-        <el-col :xs="24" :sm="12" :md="8">
+        <el-col :xs="24" :sm="12" :md="8" :lg="4">
           <el-card class="config-card" shadow="hover" @click="navigateTo('/equipment')">
             <div class="card-icon equipment-icon">
               <el-icon :size="60">
@@ -53,7 +53,7 @@
           </el-card>
         </el-col>
 
-        <el-col :xs="24" :sm="12" :md="8">
+        <el-col :xs="24" :sm="12" :md="8" :lg="4">
           <el-card class="config-card" shadow="hover" @click="navigateTo('/pill')">
             <div class="card-icon pill-icon">
               <el-icon :size="60">
@@ -76,7 +76,7 @@
           </el-card>
         </el-col>
 
-        <el-col :xs="24" :sm="12" :md="8">
+        <el-col :xs="24" :sm="12" :md="8" :lg="4">
           <el-card class="config-card" shadow="hover" @click="navigateTo('/material')">
             <div class="card-icon material-icon">
               <el-icon :size="60">
@@ -99,7 +99,7 @@
           </el-card>
         </el-col>
 
-        <el-col :xs="24" :sm="12" :md="8">
+        <el-col :xs="24" :sm="12" :md="8" :lg="4">
           <el-card class="config-card" shadow="hover" @click="navigateTo('/pill-recipe')">
             <div class="card-icon recipe-icon">
               <el-icon :size="60">
@@ -121,6 +121,98 @@
             </div>
           </el-card>
         </el-col>
+
+        <el-col :xs="24" :sm="12" :md="8" :lg="4">
+          <el-card class="config-card" shadow="hover" @click="navigateTo('/sect')">
+            <div class="card-icon sect-icon">
+              <el-icon :size="60">
+                <Star />
+              </el-icon>
+            </div>
+            <div class="card-content">
+              <h2>宗门配置</h2>
+              <p>管理游戏中的宗门信息、类型和加入要求配置</p>
+              <div class="card-stats">
+                <span class="stat-item">
+                  <el-icon><List /></el-icon>
+                  宗门列表管理
+                </span>
+              </div>
+            </div>
+            <div class="card-action">
+              <el-button type="warning" :icon="ArrowRight">进入配置</el-button>
+            </div>
+          </el-card>
+        </el-col>
+
+        <el-col :xs="24" :sm="12" :md="8" :lg="4">
+          <el-card class="config-card" shadow="hover" @click="navigateTo('/sect-shop')">
+            <div class="card-icon shop-icon">
+              <el-icon :size="60">
+                <PriceTag />
+              </el-icon>
+            </div>
+            <div class="card-content">
+              <h2>宗门商店配置</h2>
+              <p>管理游戏中的宗门商店物品和价格配置</p>
+              <div class="card-stats">
+                <span class="stat-item">
+                  <el-icon><List /></el-icon>
+                  商店物品管理
+                </span>
+              </div>
+            </div>
+            <div class="card-action">
+              <el-button type="success" :icon="ArrowRight">进入配置</el-button>
+            </div>
+          </el-card>
+        </el-col>
+
+        <el-col :xs="24" :sm="12" :md="8" :lg="4">
+          <el-card class="config-card" shadow="hover" @click="navigateTo('/sect-task')">
+            <div class="card-icon task-icon">
+              <el-icon :size="60">
+                <Star />
+              </el-icon>
+            </div>
+            <div class="card-content">
+              <h2>宗门任务配置</h2>
+              <p>管理游戏中的宗门任务模板和奖励配置</p>
+              <div class="card-stats">
+                <span class="stat-item">
+                  <el-icon><List /></el-icon>
+                  任务模板管理
+                </span>
+              </div>
+            </div>
+            <div class="card-action">
+              <el-button type="danger" :icon="ArrowRight">进入配置</el-button>
+            </div>
+          </el-card>
+        </el-col>
+
+        <el-col :xs="24" :sm="12" :md="8" :lg="4">
+          <el-card class="config-card" shadow="hover" @click="navigateTo('/skill')">
+            <div class="card-icon skill-icon">
+              <el-icon :size="60">
+                <Star />
+              </el-icon>
+            </div>
+            <div class="card-content">
+              <h2>技能配置</h2>
+              <p>管理游戏中的技能、伤害和灵力消耗配置</p>
+              <div class="card-stats">
+                <span class="stat-item">
+                  <el-icon><List /></el-icon>
+                  技能列表管理
+                </span>
+              </div>
+            </div>
+            <div class="card-action">
+              <el-button type="primary" :icon="ArrowRight">进入配置</el-button>
+            </div>
+          </el-card>
+        </el-col>
       </el-row>
     </div>
 
@@ -132,6 +224,10 @@
         <el-button type="warning" :icon="Plus" @click="navigateTo('/pill')">新增丹药</el-button>
         <el-button type="danger" :icon="Plus" @click="navigateTo('/material')">新材料</el-button>
         <el-button type="info" :icon="Plus" @click="navigateTo('/pill-recipe')">新丹方</el-button>
+        <el-button type="warning" :icon="Plus" @click="navigateTo('/sect')">新宗门</el-button>
+        <el-button type="success" :icon="Plus" @click="navigateTo('/sect-shop')">新商店物品</el-button>
+        <el-button type="danger" :icon="Plus" @click="navigateTo('/sect-task')">新任务模板</el-button>
+        <el-button type="primary" :icon="Plus" @click="navigateTo('/skill')">新技能</el-button>
       </div>
     </div>
   </div>
@@ -213,6 +309,22 @@ const navigateTo = (path: string) => {
 
         &.recipe-icon {
           background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+        }
+
+        &.sect-icon {
+          background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+        }
+
+        &.shop-icon {
+          background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);
+        }
+
+        &.task-icon {
+          background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
+        }
+
+        &.skill-icon {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
       }
 

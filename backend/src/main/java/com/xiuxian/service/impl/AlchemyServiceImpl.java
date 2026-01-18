@@ -166,7 +166,13 @@ public class AlchemyServiceImpl extends ServiceImpl<AlchemyRecordMapper, Alchemy
             throw new BusinessException(5004, "炼丹等级不足，需要炼丹等级: " + recipe.getAlchemyLevelRequired());
         }
 
-        // 4. 验证并消耗材料
+        // 4. 验证丹药数据（在材料验证之前，确保丹方配置的丹药存在）
+        Pill pill = pillMapper.selectById(recipe.getPillId());
+        if (pill == null) {
+            throw new BusinessException(5002, "丹药数据异常");
+        }
+
+        // 5. 验证并消耗材料
         List<PillRecipeResponse.MaterialRequirement> materials = getMaterialRequirements(characterId, recipeId);
 
         // 检查丹方是否配置了材料
@@ -185,12 +191,6 @@ public class AlchemyServiceImpl extends ServiceImpl<AlchemyRecordMapper, Alchemy
         for (PillRecipeResponse.MaterialRequirement mat : materials) {
             inventoryService.removeItem(characterId, ITEM_TYPE_MATERIAL, mat.getMaterialId(),
                     mat.getRequiredQuantity());
-        }
-
-        // 5. 验证丹药数据
-        Pill pill = pillMapper.selectById(recipe.getPillId());
-        if (pill == null) {
-            throw new BusinessException(5002, "丹药数据异常");
         }
 
         // 6. 计算成功率并判定结果
