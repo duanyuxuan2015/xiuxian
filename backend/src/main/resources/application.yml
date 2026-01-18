@@ -127,12 +127,27 @@ app:
   stamina-costs:
     cultivation: 20           # 修炼消耗体力
     combat-multiplier: 1.0   # 战斗体力消耗倍数（乘以妖兽基础消耗）
-    combat-defeat-ratio: 2 # 战斗失败时体力消耗比例（50%）
-    alchemy: 20               # 炼丹消耗体力（0=不消耗）
-    forging: 20               # 炼器消耗体力（0=不消耗）
-    exploration: 20           # 探索消耗体力（0=不消耗）
+    combat-defeat-ratio: 2   # 战斗失败时体力消耗比例
+    alchemy: 20              # 炼丹消耗体力（0=不消耗）
+    forging: 20              # 炼器消耗体力（0=不消耗）
+    exploration: 20          # 探索消耗体力（0=不消耗）
     meditation: 0            # 打坐消耗体力（0=不消耗）
     breakthrough: 0          # 突破消耗体力（0=不消耗）
+
+# 探索事件概率配置
+exploration-probability:
+  # 最大调整系数（0.0-1.0），机缘对概率的最大影响幅度
+  max-adjustment: 0.3
+  # 机缘每增加多少点，fortuneFactor增加0.1（默认20点，即200点机缘达到最大影响）
+  fortune-points-per-factor: 20
+  # 各级别基础概率 [1级, 2级, 3级, 4级]
+  base-probabilities: [0.55, 0.30, 0.10, 0.05]
+  # 各级别调整方向 [1级, 2级, 3级, 4级]
+  # 负值表示减少，正值表示增加，绝对值越大影响越明显
+  directions: [-1.0, -0.2, 0.5, 1.0]
+  # 概率范围限制
+  min-probability: 0.05  # 最小概率5%
+  max-probability: 0.80  # 最大概率80%
 
   # 战斗配置
   combat:
@@ -180,12 +195,12 @@ app:
   # 修炼配置
   cultivation:
     base-exp:
-      min: 50        # 基础经验值下限
-      max: 200       # 基础经验值上限
+      min: 100       # 基础经验值下限（提高）
+      max: 300       # 基础经验值上限（提高）
     bonus:
-      comprehension: 0.1  # 悟性加成系数（每点悟性增加的经验比例）
-      realm-per-level: 1  # 境界加成系数（每境界等级增加的经验比例）
-    level-multiplier: 0.5    # 层次升级系数（每层增加0.5倍）
+      comprehension: 0.1  # 悟性加成系数（每点悟性增加10%经验）
+      realm-per-level: 1  # 境界加成系数（每境界等级增加100%经验）
+    level-multiplier: 0.5    # 层次修炼经验加成系数（每层增加50%经验）
     stamina-cost: 20       # 每次修炼消耗的体力
 
   # 属性计算配置（FR-008）

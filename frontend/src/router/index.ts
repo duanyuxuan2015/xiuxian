@@ -95,6 +95,15 @@ const routes: RouteRecordRaw[] = [
       title: '技能配置管理',
       requiresAuth: false
     }
+  },
+  {
+    path: '/exploration',
+    name: 'ExplorationManagement',
+    component: () => import('@/views/exploration/Management.vue'),
+    meta: {
+      title: '探索配置管理',
+      requiresAuth: false
+    }
   }
 ];
 

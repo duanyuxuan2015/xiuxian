@@ -1400,4 +1400,366 @@ public class CultivationServiceImplTest {
         assertTrue(character.getRealmLevel() >= 2, "境界应该至少为2层");
         assertTrue(character.getRealmLevel() <= 3, "境界应该不超过3层");
     }
+
+    // ==================== 层次加成测试（新增） ====================
+
+    @Test
+    void calculateExpGained_WithLevelBonus_Level1() throws Exception {
+        // 测试第1层的层次加成（1.0倍）
+        CultivationProperties customConfig = new CultivationProperties();
+        customConfig.getBaseExp().setMin(100);
+        customConfig.getBaseExp().setMax(100);  // 固定为100，便于计算
+        customConfig.getBonus().setComprehension(0.0);  // 悟性不加成
+        customConfig.getBonus().setRealmPerLevel(0.0);   // 境界不加成
+        customConfig.setLevelMultiplier(0.5);             // 层次系数
+        customConfig.setStaminaCost(5);
+
+        Field field = CultivationServiceImpl.class.getDeclaredField("cultivationProperties");
+        field.setAccessible(true);
+        field.set(cultivationService, customConfig);
+
+        character.setRealmLevel(1);  // 第1层
+        character.setComprehension(0);
+        character.setCurrentState("闲置");
+        character.setStamina(100);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(realmService.getById(1)).thenReturn(realm);
+        when(characterService.updateCharacter(any())).thenReturn(true);
+        when(cultivationRecordMapper.insert(any())).thenReturn(1);
+
+        CultivationRequest request = new CultivationRequest();
+        request.setCharacterId(1L);
+
+        CultivationResponse response = cultivationService.startCultivation(request);
+
+        // 第1层层次加成: 1.0 + (1-1) * 0.5 = 1.0
+        // 最终经验 = 100 * 1.0 * 1.0 * 1.0 = 100
+        assertEquals(100, response.getExpGained(), "第1层应该获得100基础经验");
+    }
+
+    @Test
+    void calculateExpGained_WithLevelBonus_Level5() throws Exception {
+        // 测试第5层的层次加成（3.0倍）
+        CultivationProperties customConfig = new CultivationProperties();
+        customConfig.getBaseExp().setMin(100);
+        customConfig.getBaseExp().setMax(100);  // 固定为100
+        customConfig.getBonus().setComprehension(0.0);  // 悟性不加成
+        customConfig.getBonus().setRealmPerLevel(0.0);   // 境界不加成
+        customConfig.setLevelMultiplier(0.5);             // 层次系数
+        customConfig.setStaminaCost(5);
+
+        Field field = CultivationServiceImpl.class.getDeclaredField("cultivationProperties");
+        field.setAccessible(true);
+        field.set(cultivationService, customConfig);
+
+        character.setRealmLevel(5);  // 第5层
+        character.setComprehension(0);
+        character.setCurrentState("闲置");
+        character.setStamina(100);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(realmService.getById(1)).thenReturn(realm);
+        when(characterService.updateCharacter(any())).thenReturn(true);
+        when(cultivationRecordMapper.insert(any())).thenReturn(1);
+
+        CultivationRequest request = new CultivationRequest();
+        request.setCharacterId(1L);
+
+        CultivationResponse response = cultivationService.startCultivation(request);
+
+        // 第5层层次加成: 1.0 + (5-1) * 0.5 = 3.0
+        // 最终经验 = 100 * 1.0 * 1.0 * 3.0 = 300
+        assertEquals(300, response.getExpGained(), "第5层应该获得300经验（3倍层次加成）");
+    }
+
+    @Test
+    void calculateExpGained_WithLevelBonus_Level9() throws Exception {
+        // 测试第9层的层次加成（5.0倍）
+        CultivationProperties customConfig = new CultivationProperties();
+        customConfig.getBaseExp().setMin(100);
+        customConfig.getBaseExp().setMax(100);  // 固定为100
+        customConfig.getBonus().setComprehension(0.0);  // 悟性不加成
+        customConfig.getBonus().setRealmPerLevel(0.0);   // 境界不加成
+        customConfig.setLevelMultiplier(0.5);             // 层次系数
+        customConfig.setStaminaCost(5);
+
+        Field field = CultivationServiceImpl.class.getDeclaredField("cultivationProperties");
+        field.setAccessible(true);
+        field.set(cultivationService, customConfig);
+
+        character.setRealmLevel(9);  // 第9层（最高层）
+        character.setComprehension(0);
+        character.setCurrentState("闲置");
+        character.setStamina(100);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(realmService.getById(1)).thenReturn(realm);
+        when(characterService.updateCharacter(any())).thenReturn(true);
+        when(cultivationRecordMapper.insert(any())).thenReturn(1);
+
+        CultivationRequest request = new CultivationRequest();
+        request.setCharacterId(1L);
+
+        CultivationResponse response = cultivationService.startCultivation(request);
+
+        // 第9层层次加成: 1.0 + (9-1) * 0.5 = 5.0
+        // 最终经验 = 100 * 1.0 * 1.0 * 5.0 = 500
+        assertEquals(500, response.getExpGained(), "第9层应该获得500经验（5倍层次加成）");
+    }
+
+    @Test
+    void calculateExpGained_HighRealmWithLevelBonus() throws Exception {
+        // 测试高级境界（化神期）+ 高层次（9层）+ 悟性加成
+        CultivationProperties customConfig = new CultivationProperties();
+        customConfig.getBaseExp().setMin(200);
+        customConfig.getBaseExp().setMax(200);  // 固定为200
+        customConfig.getBonus().setComprehension(0.1);   // 悟性加成10%
+        customConfig.getBonus().setRealmPerLevel(1.0);    // 境界加成100%
+        customConfig.setLevelMultiplier(0.5);              // 层次系数50%
+        customConfig.setStaminaCost(20);
+
+        Field field = CultivationServiceImpl.class.getDeclaredField("cultivationProperties");
+        field.setAccessible(true);
+        field.set(cultivationService, customConfig);
+
+        // 模拟化神期
+        realm.setRealmLevel(6);  // 化神期是第6个境界
+
+        character.setRealmLevel(9);      // 第9层
+        character.setComprehension(50);  // 悟性50
+        character.setCurrentState("闲置");
+        character.setStamina(100);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(realmService.getById(1)).thenReturn(realm);
+        when(characterService.updateCharacter(any())).thenReturn(true);
+        when(cultivationRecordMapper.insert(any())).thenReturn(1);
+
+        CultivationRequest request = new CultivationRequest();
+        request.setCharacterId(1L);
+
+        CultivationResponse response = cultivationService.startCultivation(request);
+
+        // 计算预期经验:
+        // 基础经验: 200
+        // 悟性加成: 1.0 + 50 * 0.1 = 6.0
+        // 境界加成: 1.0 + (6-1) * 1.0 = 6.0
+        // 层次加成: 1.0 + (9-1) * 0.5 = 5.0
+        // 最终经验 = 200 * 6.0 * 6.0 * 5.0 = 36000
+        assertEquals(36000, response.getExpGained(), "化神期9层悟性50应该获得36000经验");
+    }
+
+    @Test
+    void calculateExpGained_AllBonusCombined() throws Exception {
+        // 测试所有加成叠加的效果
+        CultivationProperties customConfig = new CultivationProperties();
+        customConfig.getBaseExp().setMin(100);
+        customConfig.getBaseExp().setMax(300);  // 随机100-300
+        customConfig.getBonus().setComprehension(0.1);   // 悟性加成10%
+        customConfig.getBonus().setRealmPerLevel(1.0);    // 境界加成100%
+        customConfig.setLevelMultiplier(0.5);              // 层次系数50%
+        customConfig.setStaminaCost(20);
+
+        Field field = CultivationServiceImpl.class.getDeclaredField("cultivationProperties");
+        field.setAccessible(true);
+        field.set(cultivationService, customConfig);
+
+        // 模拟高级角色
+        realm.setRealmLevel(8);  // 高境界
+
+        character.setRealmLevel(7);       // 第7层
+        character.setComprehension(100); // 高悟性
+        character.setCurrentState("闲置");
+        character.setStamina(100);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(realmService.getById(1)).thenReturn(realm);
+        when(characterService.updateCharacter(any())).thenReturn(true);
+        when(cultivationRecordMapper.insert(any())).thenReturn(1);
+
+        CultivationRequest request = new CultivationRequest();
+        request.setCharacterId(1L);
+
+        CultivationResponse response = cultivationService.startCultivation(request);
+
+        // 计算预期经验范围:
+        // 基础经验: 100-300
+        // 悟性加成: 1.0 + 100 * 0.1 = 11.0
+        // 境界加成: 1.0 + (8-1) * 1.0 = 8.0
+        // 层次加成: 1.0 + (7-1) * 0.5 = 4.0
+        // 最小: 100 * 11.0 * 8.0 * 4.0 = 35200
+        // 最大: 300 * 11.0 * 8.0 * 4.0 = 105600
+        assertTrue(response.getExpGained() >= 35200,
+            "高级境界+高层次+高悟性经验值应该至少为35200，实际: " + response.getExpGained());
+        assertTrue(response.getExpGained() <= 105600,
+            "高级境界+高层次+高悟性经验值应该不超过105600，实际: " + response.getExpGained());
+    }
+
+    @Test
+    void calculateExpGained_LevelBonusProgression() throws Exception {
+        // 测试层次加成的递进关系
+        CultivationProperties customConfig = new CultivationProperties();
+        customConfig.getBaseExp().setMin(100);
+        customConfig.getBaseExp().setMax(100);  // 固定100
+        customConfig.getBonus().setComprehension(0.0);
+        customConfig.getBonus().setRealmPerLevel(0.0);
+        customConfig.setLevelMultiplier(0.5);
+        customConfig.setStaminaCost(5);
+
+        Field field = CultivationServiceImpl.class.getDeclaredField("cultivationProperties");
+        field.setAccessible(true);
+        field.set(cultivationService, customConfig);
+
+        character.setComprehension(0);
+        character.setStamina(100);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(realmService.getById(1)).thenReturn(realm);
+        when(characterService.updateCharacter(any())).thenReturn(true);
+        when(cultivationRecordMapper.insert(any())).thenReturn(1);
+
+        // 测试不同层次的经验值递进
+        int[] expectedExps = {100, 150, 200, 250, 300, 350, 400, 450, 500};
+
+        for (int level = 1; level <= 9; level++) {
+            character.setRealmLevel(level);
+            character.setCurrentState("闲置");
+
+            CultivationRequest request = new CultivationRequest();
+            request.setCharacterId(1L);
+
+            CultivationResponse response = cultivationService.startCultivation(request);
+
+            assertEquals(expectedExps[level - 1], response.getExpGained(),
+                String.format("第%d层应该获得%d经验", level, expectedExps[level - 1]));
+        }
+    }
+
+    @Test
+    void calculateExpGained_ZeroComprehensionWithLevelBonus() throws Exception {
+        // 测试零悟性 + 层次加成
+        CultivationProperties customConfig = new CultivationProperties();
+        customConfig.getBaseExp().setMin(150);
+        customConfig.getBaseExp().setMax(150);  // 固定150
+        customConfig.getBonus().setComprehension(0.1);   // 悟性加成
+        customConfig.getBonus().setRealmPerLevel(1.0);    // 境界加成
+        customConfig.setLevelMultiplier(0.5);              // 层次系数
+        customConfig.setStaminaCost(20);
+
+        Field field = CultivationServiceImpl.class.getDeclaredField("cultivationProperties");
+        field.setAccessible(true);
+        field.set(cultivationService, customConfig);
+
+        realm.setRealmLevel(6);  // 化神期
+
+        character.setRealmLevel(9);       // 第9层
+        character.setComprehension(0);    // 零悟性
+        character.setCurrentState("闲置");
+        character.setStamina(100);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(realmService.getById(1)).thenReturn(realm);
+        when(characterService.updateCharacter(any())).thenReturn(true);
+        when(cultivationRecordMapper.insert(any())).thenReturn(1);
+
+        CultivationRequest request = new CultivationRequest();
+        request.setCharacterId(1L);
+
+        CultivationResponse response = cultivationService.startCultivation(request);
+
+        // 计算预期经验:
+        // 基础经验: 150
+        // 悟性加成: 1.0 + 0 * 0.1 = 1.0 (无加成)
+        // 境界加成: 1.0 + (6-1) * 1.0 = 6.0
+        // 层次加成: 1.0 + (9-1) * 0.5 = 5.0
+        // 最终经验 = 150 * 1.0 * 6.0 * 5.0 = 4500
+        assertEquals(4500, response.getExpGained(), "零悟性化神期9层应该获得4500经验");
+    }
+
+    @Test
+    void calculateExpGained_LowLevelHighRealm() throws Exception {
+        // 测试低层次 + 高境界（早期突破到新境界）
+        CultivationProperties customConfig = new CultivationProperties();
+        customConfig.getBaseExp().setMin(100);
+        customConfig.getBaseExp().setMax(100);  // 固定100
+        customConfig.getBonus().setComprehension(0.0);
+        customConfig.getBonus().setRealmPerLevel(1.0);
+        customConfig.setLevelMultiplier(0.5);
+        customConfig.setStaminaCost(20);
+
+        Field field = CultivationServiceImpl.class.getDeclaredField("cultivationProperties");
+        field.setAccessible(true);
+        field.set(cultivationService, customConfig);
+
+        realm.setRealmLevel(6);  // 化神期
+
+        character.setRealmLevel(1);       // 第1层（刚突破）
+        character.setComprehension(0);
+        character.setCurrentState("闲置");
+        character.setStamina(100);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(realmService.getById(1)).thenReturn(realm);
+        when(characterService.updateCharacter(any())).thenReturn(true);
+        when(cultivationRecordMapper.insert(any())).thenReturn(1);
+
+        CultivationRequest request = new CultivationRequest();
+        request.setCharacterId(1L);
+
+        CultivationResponse response = cultivationService.startCultivation(request);
+
+        // 计算预期经验:
+        // 基础经验: 100
+        // 悟性加成: 1.0
+        // 境界加成: 1.0 + (6-1) * 1.0 = 6.0
+        // 层次加成: 1.0 + (1-1) * 0.5 = 1.0 (第1层无加成)
+        // 最终经验 = 100 * 1.0 * 6.0 * 1.0 = 600
+        assertEquals(600, response.getExpGained(), "化神期1层应该获得600经验");
+    }
+
+    @Test
+    void calculateExpGained_VerifyFormulaIntegrity() throws Exception {
+        // 验证经验公式的完整性：基础 × 悟性 × 境界 × 层次
+        CultivationProperties customConfig = new CultivationProperties();
+        customConfig.getBaseExp().setMin(100);
+        customConfig.getBaseExp().setMax(200);
+        customConfig.getBonus().setComprehension(0.05);  // 悟性5%
+        customConfig.getBonus().setRealmPerLevel(0.5);    // 境界50%
+        customConfig.setLevelMultiplier(0.3);              // 层次30%
+        customConfig.setStaminaCost(10);
+
+        Field field = CultivationServiceImpl.class.getDeclaredField("cultivationProperties");
+        field.setAccessible(true);
+        field.set(cultivationService, customConfig);
+
+        realm.setRealmLevel(3);  // 第3境界
+
+        character.setRealmLevel(5);       // 第5层
+        character.setComprehension(100); // 悟性100
+        character.setCurrentState("闲置");
+        character.setStamina(100);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(realmService.getById(1)).thenReturn(realm);
+        when(characterService.updateCharacter(any())).thenReturn(true);
+        when(cultivationRecordMapper.insert(any())).thenReturn(1);
+
+        CultivationRequest request = new CultivationRequest();
+        request.setCharacterId(1L);
+
+        CultivationResponse response = cultivationService.startCultivation(request);
+
+        // 计算预期范围:
+        // 基础经验: 100-200
+        // 悟性加成: 1.0 + 100 * 0.05 = 6.0
+        // 境界加成: 1.0 + (3-1) * 0.5 = 2.0
+        // 层次加成: 1.0 + (5-1) * 0.3 = 2.2
+        // 最小: 100 * 6.0 * 2.0 * 2.2 = 2640
+        // 最大: 200 * 6.0 * 2.0 * 2.2 = 5280
+        assertTrue(response.getExpGained() >= 2640,
+            "经验值应该至少为2640，实际: " + response.getExpGained());
+        assertTrue(response.getExpGained() <= 5280,
+            "经验值应该不超过5280，实际: " + response.getExpGained());
+    }
 }

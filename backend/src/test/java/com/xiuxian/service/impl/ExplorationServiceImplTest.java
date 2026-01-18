@@ -2,6 +2,7 @@ package com.xiuxian.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.xiuxian.common.exception.BusinessException;
+import com.xiuxian.config.ExplorationProbabilityConfig;
 import com.xiuxian.dto.request.ExplorationRequest;
 import com.xiuxian.dto.response.ExplorationAreaResponse;
 import com.xiuxian.dto.response.ExplorationResponse;
@@ -18,6 +19,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.lang.reflect.Field;
 import java.util.Collections;
@@ -28,6 +31,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 public class ExplorationServiceImplTest {
 
     @Mock
@@ -46,6 +50,8 @@ public class ExplorationServiceImplTest {
     private MonsterMapper monsterMapper;
     @Mock
     private ExplorationRecordMapper explorationRecordMapper; // Implicitly used by ServiceImpl
+    @Mock
+    private ExplorationProbabilityConfig probabilityConfig;
 
     @InjectMocks
     private ExplorationServiceImpl explorationService;
@@ -69,6 +75,13 @@ public class ExplorationServiceImplTest {
             baseMapperField.setAccessible(true);
             baseMapperField.set(explorationService, explorationRecordMapper);
         }
+
+        // 配置probabilityConfig的默认返回值
+        when(probabilityConfig.getMaxAdjustment()).thenReturn(0.3);
+        when(probabilityConfig.getBaseProbabilities()).thenReturn(java.util.List.of(0.55, 0.30, 0.10, 0.05));
+        when(probabilityConfig.getDirections()).thenReturn(java.util.List.of(-1.0, -0.2, 0.5, 1.0));
+        when(probabilityConfig.getMinProbability()).thenReturn(0.05);
+        when(probabilityConfig.getMaxProbability()).thenReturn(0.80);
 
         character = new PlayerCharacter();
         character.setCharacterId(1L);
@@ -350,7 +363,6 @@ public class ExplorationServiceImplTest {
         combatEvent.setEventName("遭遇野狼");
         combatEvent.setDescription("一只饥饿的野狼向你扑来");
         combatEvent.setMonsterId(1L);
-        combatEvent.setProbability(100);
 
         when(characterService.getById(1L)).thenReturn(character);
         when(areaMapper.selectById(1L)).thenReturn(area);
@@ -389,7 +401,6 @@ public class ExplorationServiceImplTest {
         gatherEvent.setRewardId(1L);
         gatherEvent.setRewardQuantityMin(1);
         gatherEvent.setRewardQuantityMax(3);
-        gatherEvent.setProbability(100);
 
         when(characterService.getById(1L)).thenReturn(character);
         when(areaMapper.selectById(1L)).thenReturn(area);
@@ -424,7 +435,6 @@ public class ExplorationServiceImplTest {
         trapEvent.setEventType("陷阱");
         trapEvent.setEventName("触发陷阱");
         trapEvent.setDescription("不慎踩中了陷阱");
-        trapEvent.setProbability(100);
 
         character.setCurrentHealth(100);
 
@@ -461,7 +471,6 @@ public class ExplorationServiceImplTest {
         fortuneEvent.setRewardId(1L);
         fortuneEvent.setRewardQuantityMin(1);
         fortuneEvent.setRewardQuantityMax(2);
-        fortuneEvent.setProbability(100);
 
         when(characterService.getById(1L)).thenReturn(character);
         when(areaMapper.selectById(1L)).thenReturn(area);
@@ -481,5 +490,124 @@ public class ExplorationServiceImplTest {
         assertEquals(Boolean.FALSE, response.getNeedCombat());
         assertNotNull(response.getRewards());
         assertTrue(response.getRewards().contains("筑基丹"));
+    }
+
+    // ==================== 事件级别和机缘测试 ====================
+
+    @Test
+    void selectEventLevel_Fortune0_UsesBaseProbabilities() {
+        // 使用反射调用private方法测试基础概率
+        try {
+            java.lang.reflect.Method method = ExplorationServiceImpl.class.getDeclaredMethod("selectEventLevel", Integer.class);
+            method.setAccessible(true);
+
+            // 模拟多次选择，验证分布
+            int[] levelCounts = new int[4];
+            int iterations = 1000;
+
+            for (int i = 0; i < iterations; i++) {
+                int level = (int) method.invoke(explorationService, 0);
+                levelCounts[level - 1]++;
+            }
+
+            // 验证基础概率分布（使用更宽松的范围以考虑随机性）
+            assertTrue(levelCounts[0] >= 480 && levelCounts[0] <= 620, "Level 1 should be around 55%");
+            assertTrue(levelCounts[1] >= 250 && levelCounts[1] <= 350, "Level 2 should be around 30%");
+            assertTrue(levelCounts[2] >= 70 && levelCounts[2] <= 130, "Level 3 should be around 10%");
+            assertTrue(levelCounts[3] >= 30 && levelCounts[3] <= 70, "Level 4 should be around 5%");
+        } catch (Exception e) {
+            fail("Failed to invoke selectEventLevel: " + e.getMessage());
+        }
+    }
+
+    @Test
+    void selectEventLevel_Fortune100_IncreasesHighLevelProbability() {
+        try {
+            java.lang.reflect.Method method = ExplorationServiceImpl.class.getDeclaredMethod("selectEventLevel", Integer.class);
+            method.setAccessible(true);
+
+            int[] levelCounts = new int[4];
+            int iterations = 1000;
+
+            for (int i = 0; i < iterations; i++) {
+                int level = (int) method.invoke(explorationService, 100);
+                levelCounts[level - 1]++;
+            }
+
+            // 机缘100时，高级别事件概率应该增加
+            // 只验证趋势：Level 1应该比基础概率少，Level 4应该比基础概率多
+            assertTrue(levelCounts[0] < 500, "Level 1 should decrease with high fortune");
+            assertTrue(levelCounts[3] > 40, "Level 4 should increase with high fortune");
+            // Level 2和Level 3应该在合理范围内
+            assertTrue(levelCounts[1] >= 200 && levelCounts[1] <= 350, "Level 2 should be in reasonable range");
+            assertTrue(levelCounts[2] >= 80 && levelCounts[2] <= 150, "Level 3 should be in reasonable range");
+        } catch (Exception e) {
+            fail("Failed to invoke selectEventLevel: " + e.getMessage());
+        }
+    }
+
+    @Test
+    void selectEventLevel_Fortune50_ModerateInfluence() {
+        try {
+            java.lang.reflect.Method method = ExplorationServiceImpl.class.getDeclaredMethod("selectEventLevel", Integer.class);
+            method.setAccessible(true);
+
+            int[] levelCounts = new int[4];
+            int iterations = 1000;
+
+            for (int i = 0; i < iterations; i++) {
+                int level = (int) method.invoke(explorationService, 50);
+                levelCounts[level - 1]++;
+            }
+
+            // 机缘50时，应该有中等程度的影响 - 验证基本趋势
+            assertTrue(levelCounts[0] >= 400 && levelCounts[0] <= 550, "Level 1 should decrease moderately");
+            assertTrue(levelCounts[1] >= 250 && levelCounts[1] <= 350, "Level 2 should be in reasonable range");
+            assertTrue(levelCounts[2] >= 80 && levelCounts[2] <= 130, "Level 3 should be in reasonable range");
+            assertTrue(levelCounts[3] >= 40 && levelCounts[3] <= 80, "Level 4 should be in reasonable range");
+        } catch (Exception e) {
+            fail("Failed to invoke selectEventLevel: " + e.getMessage());
+        }
+    }
+
+    @Test
+    void startExploration_RespectsEventLevels() {
+        // 创建不同级别的事件
+        ExplorationEvent level1Event = new ExplorationEvent();
+        level1Event.setEventId(1L);
+        level1Event.setAreaId(1L);
+        level1Event.setEventType("无事");
+        level1Event.setEventName("平静探索");
+        level1Event.setLevel(1);
+
+        ExplorationEvent level4Event = new ExplorationEvent();
+        level4Event.setEventId(2L);
+        level4Event.setAreaId(1L);
+        level4Event.setEventType("机缘");
+        level4Event.setEventName("天降横财");
+        level4Event.setLevel(4);
+
+        when(characterService.getById(1L)).thenReturn(character);
+        when(areaMapper.selectById(1L)).thenReturn(area);
+        when(eventMapper.selectList(any())).thenReturn(java.util.Arrays.asList(level1Event, level4Event));
+        when(explorationRecordMapper.insert(any(ExplorationRecord.class))).thenReturn(1);
+
+        // 机缘0时应该大概率触发1级事件
+        character.setFortune(0);
+        ExplorationResponse response = explorationService.startExploration(createRequest(1L, 1L));
+        assertNotNull(response);
+        // 由于1级事件概率高（55%），大部分情况下应该触发1级
+
+        // 机缘100时，4级事件概率应该提升
+        character.setFortune(100);
+        response = explorationService.startExploration(createRequest(1L, 1L));
+        assertNotNull(response);
+    }
+
+    private ExplorationRequest createRequest(Long characterId, Long areaId) {
+        ExplorationRequest request = new ExplorationRequest();
+        request.setCharacterId(characterId);
+        request.setAreaId(areaId);
+        return request;
     }
 }

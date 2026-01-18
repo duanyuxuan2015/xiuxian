@@ -13,6 +13,7 @@ import com.xiuxian.entity.ExplorationRecord;
 import com.xiuxian.entity.Material;
 import com.xiuxian.entity.Monster;
 import com.xiuxian.entity.Pill;
+import com.xiuxian.config.ExplorationProbabilityConfig;
 import com.xiuxian.mapper.ExplorationAreaMapper;
 import com.xiuxian.mapper.ExplorationEventMapper;
 import com.xiuxian.mapper.ExplorationRecordMapper;
@@ -49,6 +50,7 @@ public class ExplorationServiceImpl extends ServiceImpl<ExplorationRecordMapper,
     private final MaterialMapper materialMapper;
     private final PillMapper pillMapper;
     private final MonsterMapper monsterMapper;
+    private final ExplorationProbabilityConfig probabilityConfig;
     private final Random random = new Random();
 
     public ExplorationServiceImpl(@Lazy CharacterService characterService,
@@ -57,7 +59,8 @@ public class ExplorationServiceImpl extends ServiceImpl<ExplorationRecordMapper,
             ExplorationEventMapper eventMapper,
             MaterialMapper materialMapper,
             PillMapper pillMapper,
-            MonsterMapper monsterMapper) {
+            MonsterMapper monsterMapper,
+            ExplorationProbabilityConfig probabilityConfig) {
         this.characterService = characterService;
         this.inventoryService = inventoryService;
         this.areaMapper = areaMapper;
@@ -65,6 +68,7 @@ public class ExplorationServiceImpl extends ServiceImpl<ExplorationRecordMapper,
         this.materialMapper = materialMapper;
         this.pillMapper = pillMapper;
         this.monsterMapper = monsterMapper;
+        this.probabilityConfig = probabilityConfig;
     }
 
     @Override
@@ -149,7 +153,7 @@ public class ExplorationServiceImpl extends ServiceImpl<ExplorationRecordMapper,
         characterService.updateById(character);
 
         // 8. 随机触发事件
-        ExplorationEvent event = selectRandomEvent(areaId);
+        ExplorationEvent event = selectRandomEvent(areaId, character);
 
         // 9. 处理事件结果
         ExplorationResponse response = processEvent(character, area, event);
@@ -167,7 +171,7 @@ public class ExplorationServiceImpl extends ServiceImpl<ExplorationRecordMapper,
         return response;
     }
 
-    private ExplorationEvent selectRandomEvent(Long areaId) {
+    private ExplorationEvent selectRandomEvent(Long areaId, PlayerCharacter character) {
         LambdaQueryWrapper<ExplorationEvent> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(ExplorationEvent::getAreaId, areaId);
         List<ExplorationEvent> events = eventMapper.selectList(wrapper);
@@ -176,19 +180,86 @@ public class ExplorationServiceImpl extends ServiceImpl<ExplorationRecordMapper,
             return null;
         }
 
-        // 根据概率选择事件
-        int totalProbability = events.stream().mapToInt(ExplorationEvent::getProbability).sum();
-        int roll = random.nextInt(totalProbability);
+        // 按级别分组事件
+        List<List<ExplorationEvent>> eventsByLevel = new ArrayList<>();
+        for (int level = 1; level <= 4; level++) {
+            final int currentLevel = level;
+            List<ExplorationEvent> levelEvents = events.stream()
+                    .filter(e -> e.getLevel() != null && e.getLevel() == currentLevel)
+                    .collect(java.util.stream.Collectors.toList());
+            eventsByLevel.add(levelEvents);
+        }
 
-        int cumulative = 0;
-        for (ExplorationEvent event : events) {
-            cumulative += event.getProbability();
+        // 获取角色机缘
+        Integer fortune = character.getFortune();
+        if (fortune == null) fortune = 0;
+
+        // 选择事件级别
+        int selectedLevel = selectEventLevel(fortune);
+
+        // 在选定的级别中随机选择事件（平均分配）
+        List<ExplorationEvent> levelEvents = eventsByLevel.get(selectedLevel - 1);
+        if (levelEvents.isEmpty()) {
+            // 如果该级别没有事件，返回第一个事件
+            return events.get(0);
+        }
+
+        // 随机选择该级别中的任一事件
+        return levelEvents.get(random.nextInt(levelEvents.size()));
+    }
+
+    /**
+     * 根据机缘选择事件级别
+     * @param fortune 机缘值
+     * @return 事件级别 (1-4)
+     */
+    private int selectEventLevel(Integer fortune) {
+        // 从配置获取基础概率
+        List<Double> baseProbabilities = probabilityConfig.getBaseProbabilities();
+        double[] baseProbs = baseProbabilities.stream().mapToDouble(Double::doubleValue).toArray();
+
+        // 机缘影响系数 (0.0 - 1.0)
+        // 从配置读取机缘每多少点增加0.1的fortuneFactor，默认20点
+        // fortuneFactor = fortune / (fortunePointsPerFactor * 10)
+        int fortunePointsPerFactor = probabilityConfig.getFortunePointsPerFactor();
+        double fortuneFactor = Math.min(fortune / (fortunePointsPerFactor * 10.0), 1.0);
+        double maxAdjustment = probabilityConfig.getMaxAdjustment();
+
+        // 从配置获取调整方向
+        List<Double> directions = probabilityConfig.getDirections();
+        double[] dirs = directions.stream().mapToDouble(Double::doubleValue).toArray();
+
+        // 计算调整后的概率
+        double[] adjustedProbabilities = new double[4];
+        double totalProbability = 0;
+
+        for (int level = 0; level < 4; level++) {
+            double adjusted = baseProbs[level] * (1 + dirs[level] * fortuneFactor * maxAdjustment);
+            // 限制在配置的范围内
+            adjusted = Math.max(probabilityConfig.getMinProbability(),
+                    Math.min(probabilityConfig.getMaxProbability(), adjusted));
+            adjustedProbabilities[level] = adjusted;
+            totalProbability += adjusted;
+        }
+
+        // 归一化（确保总和为1.0）
+        for (int level = 0; level < 4; level++) {
+            adjustedProbabilities[level] /= totalProbability;
+        }
+
+        // 随机选择级别
+        double roll = random.nextDouble();
+        double cumulative = 0;
+        for (int level = 0; level < 4; level++) {
+            cumulative += adjustedProbabilities[level];
             if (roll < cumulative) {
-                return event;
+                logger.debug("事件级别选择: fortune={}, level={}, probability={}",
+                        fortune, level + 1, String.format("%.2f%%", adjustedProbabilities[level] * 100));
+                return level + 1;  // 返回1-4级别
             }
         }
 
-        return events.get(events.size() - 1);
+        return 1;  // 默认返回1级
     }
 
     @Transactional

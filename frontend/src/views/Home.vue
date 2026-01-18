@@ -213,6 +213,29 @@
             </div>
           </el-card>
         </el-col>
+
+        <el-col :xs="24" :sm="12" :md="8" :lg="4">
+          <el-card class="config-card" shadow="hover" @click="navigateTo('/exploration')">
+            <div class="card-icon exploration-icon">
+              <el-icon :size="60">
+                <Star />
+              </el-icon>
+            </div>
+            <div class="card-content">
+              <h2>探索配置</h2>
+              <p>管理游戏中的探索区域、事件和奖励配置</p>
+              <div class="card-stats">
+                <span class="stat-item">
+                  <el-icon><List /></el-icon>
+                  探索系统管理
+                </span>
+              </div>
+            </div>
+            <div class="card-action">
+              <el-button type="info" :icon="ArrowRight">进入配置</el-button>
+            </div>
+          </el-card>
+        </el-col>
       </el-row>
     </div>
 
@@ -228,6 +251,7 @@
         <el-button type="success" :icon="Plus" @click="navigateTo('/sect-shop')">新商店物品</el-button>
         <el-button type="danger" :icon="Plus" @click="navigateTo('/sect-task')">新任务模板</el-button>
         <el-button type="primary" :icon="Plus" @click="navigateTo('/skill')">新技能</el-button>
+        <el-button type="info" :icon="Plus" @click="navigateTo('/exploration')">新探索区域</el-button>
       </div>
     </div>
   </div>
@@ -325,6 +349,10 @@ const navigateTo = (path: string) => {
 
         &.skill-icon {
           background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        &.exploration-icon {
+          background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
         }
       }
 

@@ -240,6 +240,7 @@ public class CultivationServiceImpl extends ServiceImpl<CultivationRecordMapper,
         // 从配置获取加成系数
         double comprehensionCoefficient = cultivationProperties.getBonus().getComprehension();
         double realmCoefficient = cultivationProperties.getBonus().getRealmPerLevel();
+        double levelMultiplierConfig = cultivationProperties.getLevelMultiplier();
 
         // 计算悟性加成
         double comprehensionBonus = 1.0 + character.getComprehension() * comprehensionCoefficient;
@@ -247,7 +248,12 @@ public class CultivationServiceImpl extends ServiceImpl<CultivationRecordMapper,
         // 计算境界加成
         double realmBonus = 1.0 + (realm.getRealmLevel() - 1) * realmCoefficient;
 
-        return (int) (baseExp * comprehensionBonus * realmBonus);
+        // 计算当前层次的加成（层次越高，经验越多）
+        // 1层: 1.0倍, 2层: 1.5倍, ..., 9层: 5.0倍
+        double levelBonus = 1.0 + (character.getRealmLevel() - 1) * levelMultiplierConfig;
+
+        // 综合计算：基础经验 × 悟性加成 × 境界加成 × 层次加成
+        return (int) (baseExp * comprehensionBonus * realmBonus * levelBonus);
     }
 
     /**

@@ -1,39 +1,36 @@
-package com.xiuxian.entity;
-
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
+package com.xiuxian.dto.response;
 
 /**
- * 探索事件实体
+ * 探索事件详情响应
  */
-@TableName("exploration_event")
-public class ExplorationEvent {
+public class ExplorationEventDetailResponse {
 
-    @TableId(type = IdType.AUTO)
     private Long eventId;
-
     private Long areaId;
-
     private String eventType;
-
     private String eventName;
-
     private String description;
-
     private Integer level;
-
     private String rewardType;
-
     private Long rewardId;
-
     private Integer rewardQuantityMin;
-
     private Integer rewardQuantityMax;
-
     private Long monsterId;
 
-    public ExplorationEvent() {
+    public static ExplorationEventDetailResponse fromEntity(com.xiuxian.entity.ExplorationEvent event) {
+        ExplorationEventDetailResponse response = new ExplorationEventDetailResponse();
+        response.setEventId(event.getEventId());
+        response.setAreaId(event.getAreaId());
+        response.setEventType(event.getEventType());
+        response.setEventName(event.getEventName());
+        response.setDescription(event.getDescription());
+        response.setLevel(event.getLevel());
+        response.setRewardType(event.getRewardType());
+        response.setRewardId(event.getRewardId());
+        response.setRewardQuantityMin(event.getRewardQuantityMin());
+        response.setRewardQuantityMax(event.getRewardQuantityMax());
+        response.setMonsterId(event.getMonsterId());
+        return response;
     }
 
     public Long getEventId() {

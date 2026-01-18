@@ -1,48 +1,40 @@
-package com.xiuxian.entity;
+package com.xiuxian.dto.request;
 
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 /**
- * 探索事件实体
+ * 探索事件创建请求
  */
-@TableName("exploration_event")
-public class ExplorationEvent {
+public class ExplorationEventCreateRequest {
 
-    @TableId(type = IdType.AUTO)
-    private Long eventId;
-
+    @NotNull(message = "区域ID不能为空")
     private Long areaId;
 
+    @NotBlank(message = "事件类型不能为空")
     private String eventType;
 
+    @NotBlank(message = "事件名称不能为空")
     private String eventName;
 
     private String description;
 
+    @NotNull(message = "事件级别不能为空")
+    @Min(value = 1, message = "事件级别必须大于0")
     private Integer level;
 
     private String rewardType;
 
     private Long rewardId;
 
+    @Min(value = 1, message = "奖励数量最小值必须大于0")
     private Integer rewardQuantityMin;
 
+    @Min(value = 1, message = "奖励数量最大值必须大于0")
     private Integer rewardQuantityMax;
 
     private Long monsterId;
-
-    public ExplorationEvent() {
-    }
-
-    public Long getEventId() {
-        return eventId;
-    }
-
-    public void setEventId(Long eventId) {
-        this.eventId = eventId;
-    }
 
     public Long getAreaId() {
         return areaId;
