@@ -65,5 +65,12 @@ export const monsterApi = {
    */
   getEquipmentList: () => {
     return request.get('/admin/monster/equipment/list');
+  },
+
+  /**
+   * 获取所有材料列表（用于选择器）
+   */
+  getMaterialList: () => {
+    return request.get('/admin/monster/material/list');
   }
 };

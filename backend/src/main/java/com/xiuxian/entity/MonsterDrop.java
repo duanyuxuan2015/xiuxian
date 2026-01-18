@@ -20,7 +20,17 @@ public class MonsterDrop {
     @TableField("monster_id")
     private Long monsterId;
 
-    @TableField("equipment_id")
+    @TableField("item_type")
+    private String itemType;
+
+    @TableField("item_id")
+    private Long itemId;
+
+    /**
+     * @deprecated 使用 itemId 替代，保留用于向后兼容
+     */
+    @Deprecated
+    @TableField(exist = false)
     private Long equipmentId;
 
     @TableField("drop_rate")
@@ -64,12 +74,37 @@ public class MonsterDrop {
         this.monsterId = monsterId;
     }
 
-    public Long getEquipmentId() {
-        return equipmentId;
+    public String getItemType() {
+        return itemType;
     }
 
+    public void setItemType(String itemType) {
+        this.itemType = itemType;
+    }
+
+    public Long getItemId() {
+        return itemId;
+    }
+
+    public void setItemId(Long itemId) {
+        this.itemId = itemId;
+    }
+
+    /**
+     * @deprecated 使用 getItemId() 替代，保留用于向后兼容
+     */
+    @Deprecated
+    public Long getEquipmentId() {
+        return "equipment".equals(itemType) ? itemId : null;
+    }
+
+    /**
+     * @deprecated 使用 setItemId() 替代，保留用于向后兼容
+     */
+    @Deprecated
     public void setEquipmentId(Long equipmentId) {
-        this.equipmentId = equipmentId;
+        this.itemType = "equipment";
+        this.itemId = equipmentId;
     }
 
     public BigDecimal getDropRate() {

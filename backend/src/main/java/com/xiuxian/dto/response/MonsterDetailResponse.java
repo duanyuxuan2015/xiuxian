@@ -179,10 +179,22 @@ public class MonsterDetailResponse {
     public static class MonsterDropResponse {
         private Long monsterDropId;
         private Long monsterId;
+
+        // 新字段
+        private String itemType; // equipment/material
+        private Long itemId;
+
+        // 兼容旧字段
+        @Deprecated
         private Long equipmentId;
+
+        // 动态字段（根据itemType变化）
+        private String itemName; // 物品名称
         private String equipmentName;
         private String equipmentType;
         private String quality;
+        private Integer materialTier; // 材料品阶
+
         private java.math.BigDecimal dropRate;
         private Integer dropQuantity;
         private String minQuality;
@@ -205,12 +217,36 @@ public class MonsterDetailResponse {
             this.monsterId = monsterId;
         }
 
+        public String getItemType() {
+            return itemType;
+        }
+
+        public void setItemType(String itemType) {
+            this.itemType = itemType;
+        }
+
+        public Long getItemId() {
+            return itemId;
+        }
+
+        public void setItemId(Long itemId) {
+            this.itemId = itemId;
+        }
+
         public Long getEquipmentId() {
             return equipmentId;
         }
 
         public void setEquipmentId(Long equipmentId) {
             this.equipmentId = equipmentId;
+        }
+
+        public String getItemName() {
+            return itemName;
+        }
+
+        public void setItemName(String itemName) {
+            this.itemName = itemName;
         }
 
         public String getEquipmentName() {
@@ -235,6 +271,14 @@ public class MonsterDetailResponse {
 
         public void setQuality(String quality) {
             this.quality = quality;
+        }
+
+        public Integer getMaterialTier() {
+            return materialTier;
+        }
+
+        public void setMaterialTier(Integer materialTier) {
+            this.materialTier = materialTier;
         }
 
         public java.math.BigDecimal getDropRate() {

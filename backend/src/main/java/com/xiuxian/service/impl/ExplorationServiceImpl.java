@@ -107,24 +107,62 @@ public class ExplorationServiceImpl extends ServiceImpl<ExplorationRecordMapper,
             throw new BusinessException(9002, "境界不足，需要境界等级: " + area.getRequiredRealmLevel());
         }
 
-        // 4. 验证灵力
-        if (character.getCurrentSpirit() < area.getSpiritCost()) {
+        // 4. 验证灵力（使用getSpiritualPower并处理null）
+        Integer currentSpirit = character.getSpiritualPower();
+        Integer spiritCost = area.getSpiritCost();
+
+        if (currentSpirit == null) {
+            throw new BusinessException(9003, "角色灵力数据异常，请联系管理员");
+        }
+
+        if (spiritCost == null) {
+            spiritCost = 0; // 默认不消耗灵力
+        }
+
+        if (currentSpirit < spiritCost) {
             throw new BusinessException(9003,
-                    "灵力不足，需要: " + area.getSpiritCost() + "，当前: " + character.getCurrentSpirit());
+                    "灵力不足，需要: " + spiritCost + "，当前: " + currentSpirit);
         }
 
         // 5. 消耗灵力
-        character.setCurrentSpirit(character.getCurrentSpirit() - area.getSpiritCost());
+        character.setSpiritualPower(currentSpirit - spiritCost);
+
+        // 6. 验证体力
+        Integer currentStamina = character.getStamina();
+        Integer staminaCost = area.getStaminaCost();
+
+        if (currentStamina == null) {
+            throw new BusinessException(9004, "角色体力数据异常，请联系管理员");
+        }
+
+        if (staminaCost == null) {
+            staminaCost = 10; // 默认消耗10体力
+        }
+
+        if (currentStamina < staminaCost) {
+            throw new BusinessException(9004,
+                    "体力不足，需要: " + staminaCost + "，当前: " + currentStamina);
+        }
+
+        // 7. 消耗体力
+        character.setStamina(currentStamina - staminaCost);
         characterService.updateById(character);
 
-        // 6. 随机触发事件
+        // 8. 随机触发事件
         ExplorationEvent event = selectRandomEvent(areaId);
 
-        // 7. 处理事件结果
+        // 9. 处理事件结果
         ExplorationResponse response = processEvent(character, area, event);
 
-        logger.info("探索完成: characterId={}, areaId={}, areaName={}, eventType={}",
-                characterId, areaId, area.getAreaName(), event != null ? event.getEventType() : "无事件");
+        // 10. 设置资源消耗和剩余信息
+        response.setStaminaCost(staminaCost);
+        response.setStaminaRemaining(character.getStamina());
+        response.setSpiritCost(spiritCost);
+        response.setSpiritRemaining(character.getSpiritualPower());
+
+        logger.info("探索完成: characterId={}, areaId={}, areaName={}, eventType={}, staminaCost={}, staminaRemaining={}, spiritCost={}, spiritRemaining={}",
+                characterId, areaId, area.getAreaName(), event != null ? event.getEventType() : "无事件",
+                staminaCost, character.getStamina(), spiritCost, character.getSpiritualPower());
 
         return response;
     }
@@ -178,6 +216,8 @@ public class ExplorationServiceImpl extends ServiceImpl<ExplorationRecordMapper,
             response.setEventName("平静探索");
             response.setResult("一路平安，未发现特别之处");
             response.setExperienceGained(area.getDangerLevel() * 5);
+            response.setSpiritualPowerGained(0);
+            response.setHealthLost(0);
             response.setNeedCombat(false);
             return response;
         }
@@ -207,6 +247,8 @@ public class ExplorationServiceImpl extends ServiceImpl<ExplorationRecordMapper,
                 record.setExperienceGained(area.getDangerLevel() * 5);
                 response.setResult("一路平安，未发现特别之处");
                 response.setExperienceGained(area.getDangerLevel() * 5);
+                response.setSpiritualPowerGained(0);
+                response.setHealthLost(0);
                 response.setNeedCombat(false);
                 break;
         }
@@ -237,6 +279,8 @@ public class ExplorationServiceImpl extends ServiceImpl<ExplorationRecordMapper,
         response.setResult("采集成功！");
         response.setRewards(rewardStr);
         response.setExperienceGained(exp);
+        response.setSpiritualPowerGained(0);
+        response.setHealthLost(0);
         response.setNeedCombat(false);
     }
 
@@ -251,11 +295,24 @@ public class ExplorationServiceImpl extends ServiceImpl<ExplorationRecordMapper,
             response.setMonsterName(monster.getMonsterName());
             response.setResult("遭遇怪物：" + monster.getMonsterName() + "，需要战斗！");
 
+            // 初始化所有字段以防止客户端NPE
+            response.setExperienceGained(0);
+            response.setSpiritualPowerGained(0);
+            response.setHealthLost(0);
+            response.setItemFound(null);
+
             record.setResult("遭遇怪物：" + monster.getMonsterName());
             record.setExperienceGained(0);
         } else {
             response.setNeedCombat(false);
             response.setResult("怪物逃跑了");
+
+            // 初始化所有字段以防止客户端NPE
+            response.setExperienceGained(5);
+            response.setSpiritualPowerGained(0);
+            response.setHealthLost(0);
+            response.setItemFound(null);
+
             record.setResult("怪物逃跑了");
             record.setExperienceGained(5);
         }
@@ -281,6 +338,8 @@ public class ExplorationServiceImpl extends ServiceImpl<ExplorationRecordMapper,
         response.setResult("获得机缘！发现了珍贵的宝物！");
         response.setRewards(rewardStr);
         response.setExperienceGained(exp);
+        response.setSpiritualPowerGained(0);
+        response.setHealthLost(0);
         response.setNeedCombat(false);
     }
 
@@ -296,6 +355,8 @@ public class ExplorationServiceImpl extends ServiceImpl<ExplorationRecordMapper,
 
         response.setResult("不幸触发陷阱！损失生命 " + damage);
         response.setExperienceGained(area.getDangerLevel() * 3);
+        response.setSpiritualPowerGained(0);
+        response.setHealthLost(damage);
         response.setNeedCombat(false);
     }
 

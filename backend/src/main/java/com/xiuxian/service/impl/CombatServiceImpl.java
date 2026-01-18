@@ -13,6 +13,7 @@ import com.xiuxian.dto.response.SkillResponse;
 import com.xiuxian.entity.CharacterSkill;
 import com.xiuxian.entity.PlayerCharacter;
 import com.xiuxian.entity.CombatRecord;
+import com.xiuxian.entity.Material;
 import com.xiuxian.entity.Monster;
 import com.xiuxian.entity.Equipment;
 import com.xiuxian.entity.Realm;
@@ -20,6 +21,7 @@ import com.xiuxian.entity.Skill;
 import com.xiuxian.mapper.CharacterSkillMapper;
 import com.xiuxian.mapper.CombatRecordMapper;
 import com.xiuxian.mapper.EquipmentMapper;
+import com.xiuxian.mapper.MaterialMapper;
 import com.xiuxian.mapper.SkillMapper;
 import com.xiuxian.service.CharacterService;
 import com.xiuxian.service.CombatService;
@@ -57,6 +59,7 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
     private final MonsterDropService monsterDropService;
     private final InventoryService inventoryService;
     private final EquipmentMapper equipmentMapper;
+    private final MaterialMapper materialMapper;
     private final SectTaskService sectTaskService;
     private final SkillService skillService;
     private final CharacterSkillMapper characterSkillMapper;
@@ -68,6 +71,7 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
     public CombatServiceImpl(@Lazy CharacterService characterService, MonsterService monsterService,
                              RealmService realmService, MonsterDropService monsterDropService,
                              InventoryService inventoryService, EquipmentMapper equipmentMapper,
+                             MaterialMapper materialMapper,
                              @Lazy SectTaskService sectTaskService, @Lazy SkillService skillService,
                              CharacterSkillMapper characterSkillMapper, SkillMapper skillMapper,
                              CombatProperties combatProperties, StaminaCostProperties staminaCostProperties) {
@@ -77,6 +81,7 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
         this.monsterDropService = monsterDropService;
         this.inventoryService = inventoryService;
         this.equipmentMapper = equipmentMapper;
+        this.materialMapper = materialMapper;
         this.sectTaskService = sectTaskService;
         this.skillService = skillService;
         this.characterSkillMapper = characterSkillMapper;
@@ -136,6 +141,8 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
         int expGained = 0;
         int spiritStonesGained = 0;
         List<String> itemsDropped = new ArrayList<>();
+        int equipmentDropCount = 0;  // 装备掉落数
+        int materialDropCount = 0;    // 材料掉落数
 
         if (result.victory) {
             expGained = monster.getExpReward();
@@ -151,9 +158,37 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
                     if (equipment != null) {
                         // 将装备添加到背包
                         inventoryService.addItem(characterId, "equipment", equipmentId, 1);
-                        itemsDropped.add(equipment.getEquipmentName());
+                        itemsDropped.add("🗡️" + equipment.getEquipmentName());
+                        equipmentDropCount++;
                         logger.info("玩家{}击败{}，获得装备: {}（已添加到背包）", character.getPlayerName(),
                                 monster.getMonsterName(), equipment.getEquipmentName());
+                    }
+                }
+            }
+
+            // 执行材料掉落检测
+            List<Long> droppedMaterialIds = monsterDropService.rollMaterialDrops(monsterId, characterId);
+            if (droppedMaterialIds != null && !droppedMaterialIds.isEmpty()) {
+                for (Long materialId : droppedMaterialIds) {
+                    Material material = materialMapper.selectById(materialId);
+                    if (material != null) {
+                        // 获取掉落数量（添加 itemType 条件以确保准确查询）
+                        LambdaQueryWrapper<com.xiuxian.entity.MonsterDrop> dropWrapper = new LambdaQueryWrapper<>();
+                        dropWrapper.eq(com.xiuxian.entity.MonsterDrop::getMonsterId, monsterId)
+                                   .eq(com.xiuxian.entity.MonsterDrop::getItemType, "material")
+                                   .eq(com.xiuxian.entity.MonsterDrop::getItemId, materialId)
+                                   .eq(com.xiuxian.entity.MonsterDrop::getDeleted, 0);
+                        com.xiuxian.entity.MonsterDrop dropConfig = monsterDropService.getOne(dropWrapper);
+                        int quantity = (dropConfig != null && dropConfig.getDropQuantity() != null)
+                                      ? dropConfig.getDropQuantity()
+                                      : 1;
+
+                        // 将材料添加到背包
+                        inventoryService.addItem(characterId, "material", materialId, quantity);
+                        itemsDropped.add("📦" + material.getMaterialName() + " x" + quantity);
+                        materialDropCount++;
+                        logger.info("玩家{}击败{}，获得材料: {} x{}（已添加到背包）", character.getPlayerName(),
+                                monster.getMonsterName(), material.getMaterialName(), quantity);
                     }
                 }
             }
@@ -216,8 +251,10 @@ public class CombatServiceImpl extends ServiceImpl<CombatRecordMapper, CombatRec
         if (result.victory) {
             StringBuilder message = new StringBuilder(String.format("战斗胜利！击败%s，获得%d经验，%d灵石！",
                     monster.getMonsterName(), expGained, spiritStonesGained));
+
+            // 分别显示装备和材料掉落
             if (!itemsDropped.isEmpty()) {
-                message.append("\n掉落装备: ").append(String.join("、", itemsDropped));
+                message.append("\n📦掉落: ").append(String.join(" | ", itemsDropped));
             }
             response.setMessage(message.toString());
         } else {

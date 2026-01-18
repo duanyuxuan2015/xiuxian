@@ -25,8 +25,11 @@ export interface Monster {
 export interface MonsterDrop {
   monsterDropId?: number;
   monsterId: number;
-  equipmentId: number;
-  equipmentName?: string;
+  itemType: 'equipment' | 'material'; // 物品类型
+  itemId: number; // 物品ID（装备ID或材料ID）
+  equipmentId?: number; // @deprecated 过渡期保留
+  itemName?: string; // 动态获取的物品名称
+  equipmentName?: string; // @deprecated 过渡期保留
   equipmentType?: string;
   quality?: string;
   dropRate: number;

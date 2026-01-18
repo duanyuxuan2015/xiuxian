@@ -119,6 +119,10 @@ app:
   idle-combat:
     max-battles: 5  # 挂机最大战斗轮数
 
+  # 批量探索配置
+  batch-exploration:
+    max-times: 10  # 批量探索最大次数
+
   # 体力消耗配置（统一管理各场景体力消耗）
   stamina-costs:
     cultivation: 20           # 修炼消耗体力
@@ -212,3 +216,7 @@ app:
     max:
       attribute: 999       # 单个属性最大值
       total-points: 9999   # 总属性点数上限（预留）
+
+# 数据库迁移配置
+migration:
+  enabled: false  # 设置为 true 以执行数据库迁移，迁移完成后请改回 false

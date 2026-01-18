@@ -23,6 +23,8 @@ public class ExplorationArea {
 
     private Integer spiritCost;
 
+    private Integer staminaCost;
+
     private Integer baseExploreTime;
 
     public ExplorationArea() {
@@ -82,5 +84,13 @@ public class ExplorationArea {
 
     public void setBaseExploreTime(Integer baseExploreTime) {
         this.baseExploreTime = baseExploreTime;
+    }
+
+    public Integer getStaminaCost() {
+        return staminaCost;
+    }
+
+    public void setStaminaCost(Integer staminaCost) {
+        this.staminaCost = staminaCost;
     }
 }

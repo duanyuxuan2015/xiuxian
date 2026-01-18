@@ -8,7 +8,16 @@ import java.math.BigDecimal;
  */
 public class MonsterDropRequest {
 
-    @NotNull(message = "装备ID不能为空")
+    @NotBlank(message = "物品类型不能为空")
+    private String itemType; // "equipment" or "material"
+
+    @NotNull(message = "物品ID不能为空")
+    private Long itemId;
+
+    /**
+     * @deprecated 使用 itemId 替代，保留用于向后兼容
+     */
+    @Deprecated
     private Long equipmentId;
 
     @NotNull(message = "掉落率不能为空")
@@ -27,10 +36,34 @@ public class MonsterDropRequest {
 
     private Boolean isGuaranteed = false;
 
+    public String getItemType() {
+        return itemType;
+    }
+
+    public void setItemType(String itemType) {
+        this.itemType = itemType;
+    }
+
+    public Long getItemId() {
+        return itemId;
+    }
+
+    public void setItemId(Long itemId) {
+        this.itemId = itemId;
+    }
+
+    /**
+     * @deprecated 使用 getItemId() 替代，保留用于向后兼容
+     */
+    @Deprecated
     public Long getEquipmentId() {
         return equipmentId;
     }
 
+    /**
+     * @deprecated 使用 setItemId() 替代，保留用于向后兼容
+     */
+    @Deprecated
     public void setEquipmentId(Long equipmentId) {
         this.equipmentId = equipmentId;
     }

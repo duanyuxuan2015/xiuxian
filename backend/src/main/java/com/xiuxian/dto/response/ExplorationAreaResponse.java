@@ -13,6 +13,7 @@ public class ExplorationAreaResponse {
     private Integer requiredRealmLevel;
     private Integer dangerLevel;
     private Integer spiritCost;
+    private Integer staminaCost;
     private Integer baseExploreTime;
     private Boolean canExplore;
 
@@ -27,6 +28,7 @@ public class ExplorationAreaResponse {
         response.setRequiredRealmLevel(area.getRequiredRealmLevel());
         response.setDangerLevel(area.getDangerLevel());
         response.setSpiritCost(area.getSpiritCost());
+        response.setStaminaCost(area.getStaminaCost());
         response.setBaseExploreTime(area.getBaseExploreTime());
         response.setCanExplore(characterRealmLevel >= area.getRequiredRealmLevel());
         return response;
@@ -80,6 +82,14 @@ public class ExplorationAreaResponse {
         this.spiritCost = spiritCost;
     }
 
+    public Integer getStaminaCost() {
+        return staminaCost;
+    }
+
+    public void setStaminaCost(Integer staminaCost) {
+        this.staminaCost = staminaCost;
+    }
+
     public Integer getBaseExploreTime() {
         return baseExploreTime;
     }
@@ -94,5 +104,14 @@ public class ExplorationAreaResponse {
 
     public void setCanExplore(Boolean canExplore) {
         this.canExplore = canExplore;
+    }
+
+    // 向后兼容：客户端期望 minRealmLevel 和 maxRealmLevel
+    public Integer getMinRealmLevel() {
+        return requiredRealmLevel;
+    }
+
+    public Integer getMaxRealmLevel() {
+        return requiredRealmLevel;
     }
 }

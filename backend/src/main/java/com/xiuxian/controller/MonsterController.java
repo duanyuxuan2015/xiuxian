@@ -10,16 +10,19 @@ import com.xiuxian.dto.request.MonsterCreateRequest;
 import com.xiuxian.dto.request.MonsterDropRequest;
 import com.xiuxian.dto.request.MonsterUpdateRequest;
 import com.xiuxian.dto.response.EquipmentSelectOption;
+import com.xiuxian.dto.response.MaterialSelectOption;
 import com.xiuxian.dto.response.MonsterDetailResponse;
 import com.xiuxian.dto.response.MonsterDetailResponse.MonsterDropResponse;
 import com.xiuxian.dto.response.MonsterListItemResponse;
 import com.xiuxian.entity.CharacterInventory;
 import com.xiuxian.entity.Equipment;
+import com.xiuxian.entity.Material;
 import com.xiuxian.entity.Monster;
 import com.xiuxian.entity.MonsterDrop;
 import com.xiuxian.entity.Realm;
 import com.xiuxian.mapper.CharacterInventoryMapper;
 import com.xiuxian.mapper.EquipmentMapper;
+import com.xiuxian.mapper.MaterialMapper;
 import com.xiuxian.mapper.MonsterDropMapper;
 import com.xiuxian.mapper.MonsterMapper;
 import com.xiuxian.mapper.RealmMapper;
@@ -64,6 +67,9 @@ public class MonsterController {
 
     @Autowired
     private EquipmentMapper equipmentMapper;
+
+    @Autowired
+    private MaterialMapper materialMapper;
 
     @Autowired(required = false)
     private EquipmentService equipmentService;
@@ -290,6 +296,25 @@ public class MonsterController {
     }
 
     /**
+     * 获取所有材料列表（用于选择器）
+     */
+    @GetMapping("/material/list")
+    public Result<List<MaterialSelectOption>> getMaterialList() {
+        logger.info("获取材料列表");
+
+        LambdaQueryWrapper<Material> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Material::getDeleted, 0);
+        List<Material> materials = materialMapper.selectList(wrapper);
+
+        List<MaterialSelectOption> options = materials.stream()
+                .map(this::convertToMaterialOption)
+                .collect(Collectors.toList());
+
+        logger.info("材料列表查询成功: count={}", options.size());
+        return Result.success(options);
+    }
+
+    /**
      * 检查名称唯一性
      */
     @GetMapping("/check-name")
@@ -321,11 +346,15 @@ public class MonsterController {
      * 验证掉落配置
      */
     private void validateDrops(List<MonsterDropRequest> drops) {
-        // 检查重复装备
-        Set<Long> equipmentIds = new HashSet<>();
+        // 检查重复物品（使用 itemType + itemId 组合）
+        Set<String> itemKeys = new HashSet<>();
         for (MonsterDropRequest drop : drops) {
-            if (!equipmentIds.add(drop.getEquipmentId())) {
-                throw new BusinessException("存在重复的装备配置");
+            String itemType = drop.getItemType() != null ? drop.getItemType() : "equipment";
+            Long itemId = drop.getItemId() != null ? drop.getItemId() : drop.getEquipmentId();
+
+            String key = itemType + ":" + itemId;
+            if (!itemKeys.add(key)) {
+                throw new BusinessException("存在重复的物品配置: " + itemType + " ID=" + itemId);
             }
         }
 
@@ -350,7 +379,17 @@ public class MonsterController {
                 .map(req -> {
                     MonsterDrop drop = new MonsterDrop();
                     drop.setMonsterId(monsterId);
-                    drop.setEquipmentId(req.getEquipmentId());
+
+                    // 优先使用新的 itemType 和 itemId 字段
+                    if (req.getItemType() != null && req.getItemId() != null) {
+                        drop.setItemType(req.getItemType());
+                        drop.setItemId(req.getItemId());
+                    } else if (req.getEquipmentId() != null) {
+                        // 向后兼容：如果使用旧字段，设置为 equipment 类型
+                        drop.setItemType("equipment");
+                        drop.setItemId(req.getEquipmentId());
+                    }
+
                     drop.setDropRate(req.getDropRate());
                     drop.setDropQuantity(req.getDropQuantity());
                     drop.setMinQuality(req.getMinQuality());
@@ -414,19 +453,45 @@ public class MonsterController {
         MonsterDropResponse response = new MonsterDropResponse();
         response.setMonsterDropId(drop.getMonsterDropId());
         response.setMonsterId(drop.getMonsterId());
-        response.setEquipmentId(drop.getEquipmentId());
+
+        // 使用新字段
+        response.setItemType(drop.getItemType());
+        response.setItemId(drop.getItemId());
+
+        // 向后兼容：设置旧字段
+        if ("equipment".equals(drop.getItemType())) {
+            response.setEquipmentId(drop.getItemId());
+        }
+
         response.setDropRate(drop.getDropRate());
         response.setDropQuantity(drop.getDropQuantity());
         response.setMinQuality(drop.getMinQuality());
         response.setMaxQuality(drop.getMaxQuality());
         response.setIsGuaranteed(drop.getIsGuaranteed() != null && drop.getIsGuaranteed() == 1);
 
-        // 查询装备信息
-        Equipment equipment = equipmentMapper.selectById(drop.getEquipmentId());
-        if (equipment != null) {
-            response.setEquipmentName(equipment.getEquipmentName());
-            response.setEquipmentType(equipment.getEquipmentType());
-            response.setQuality(equipment.getQuality());
+        // 根据 itemType 查询对应的物品信息
+        String itemType = drop.getItemType();
+        if (itemType != null) {
+            if ("equipment".equals(itemType)) {
+                // 查询装备信息
+                Equipment equipment = equipmentMapper.selectById(drop.getItemId());
+                if (equipment != null) {
+                    response.setItemName(equipment.getEquipmentName());
+                    response.setEquipmentName(equipment.getEquipmentName());
+                    response.setEquipmentType(equipment.getEquipmentType());
+                    response.setQuality(equipment.getQuality());
+                }
+            } else if ("material".equals(itemType)) {
+                // 查询材料信息
+                Material material = materialMapper.selectById(drop.getItemId());
+                if (material != null) {
+                    response.setItemName(material.getMaterialName());
+                    response.setEquipmentName(material.getMaterialName()); // 兼容前端
+                    response.setEquipmentType(material.getMaterialType()); // 兼容前端
+                    response.setQuality(material.getQuality());
+                    response.setMaterialTier(material.getMaterialTier());
+                }
+            }
         }
 
         return response;
@@ -442,6 +507,19 @@ public class MonsterController {
         option.setEquipmentType(equipment.getEquipmentType());
         option.setQuality(equipment.getQuality());
         option.setBaseScore(equipment.getBaseScore());
+        return option;
+    }
+
+    /**
+     * 转换为材料选择器选项DTO
+     */
+    private MaterialSelectOption convertToMaterialOption(Material material) {
+        MaterialSelectOption option = new MaterialSelectOption();
+        option.setMaterialId(material.getMaterialId());
+        option.setMaterialName(material.getMaterialName());
+        option.setMaterialType(material.getMaterialType());
+        option.setQuality(material.getQuality());
+        option.setMaterialTier(material.getMaterialTier());
         return option;
     }
 }

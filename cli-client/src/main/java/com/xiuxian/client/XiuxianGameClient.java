@@ -1113,17 +1113,38 @@ public class XiuxianGameClient {
             System.out.println("├─────────────────────────────────────┤");
             System.out.printf("│ 获得经验：  %-8d                │\n", totalExpGained);
             System.out.printf("│ 获得灵石：  %-8d                │\n", totalSpiritStonesGained);
-            System.out.printf("│ 掉落装备：  %-4d件                  │\n", allItemsDropped.size());
+
+            // 分别统计装备和材料掉落
+            int equipmentCount = 0;
+            int materialCount = 0;
+            for (String item : allItemsDropped) {
+                if (item.startsWith("🗡️")) {
+                    equipmentCount++;
+                } else if (item.startsWith("📦")) {
+                    materialCount++;
+                }
+            }
+
+            // 根据掉落情况动态显示统计行
+            if (equipmentCount > 0 && materialCount > 0) {
+                System.out.printf("│ 掉落装备：  %-4d件                  │\n", equipmentCount);
+                System.out.printf("│ 掉落材料：  %-4d件                  │\n", materialCount);
+            } else if (equipmentCount > 0) {
+                System.out.printf("│ 掉落装备：  %-4d件                  │\n", equipmentCount);
+            } else if (materialCount > 0) {
+                System.out.printf("│ 掉落材料：  %-4d件                  │\n", materialCount);
+            }
+
             System.out.println("└─────────────────────────────────────┘");
 
             if (victories > 0) {
                 double winRate = (double) victories / totalBattles * 100;
-                System.out.printf("胜率：%.1f%%\n", winRate);
+                System.out.printf("胜率：%.1f%%   掉落装备和掉落材料分开统计\n", winRate);
             }
 
-            // 显示所有装备掉落详情
+            // 显示所有掉落详情
             if (!allItemsDropped.isEmpty()) {
-                System.out.println("\n📦 装备掉落详情：");
+                System.out.println("\n📦 掉落详情：");
                 System.out.println("┌─────────────────────────────────────┐");
                 for (int i = 0; i < allItemsDropped.size(); i++) {
                     System.out.printf("│ %2d. %-31s │\n", i + 1, allItemsDropped.get(i));
@@ -2210,7 +2231,8 @@ public class XiuxianGameClient {
             System.out.println("├──────────────────────────────────────┤");
             System.out.println("│  1. 查看探索区域                     │");
             System.out.println("│  2. 开始探索                         │");
-            System.out.println("│  3. 查看探索记录                     │");
+            System.out.println("│  3. 🔄 批量探索                      │");
+            System.out.println("│  4. 查看探索记录                     │");
             System.out.println("│  0. 返回主菜单                       │");
             System.out.println("└──────────────────────────────────────┘");
             System.out.print("\n请选择 (直接回车返回主菜单): ");
@@ -2220,7 +2242,8 @@ public class XiuxianGameClient {
             switch (choice) {
                 case "1": showExplorationAreas(); break;
                 case "2": startExploration(); break;
-                case "3": showExplorationRecords(); break;
+                case "3": startBatchExploration(); break;
+                case "4": showExplorationRecords(); break;
                 case "0": return;
                 default: System.out.println("\n无效选择！");
             }
@@ -2242,12 +2265,18 @@ public class XiuxianGameClient {
             List<ExplorationAreaResponse> areas = gson.fromJson(array, listType);
 
             if (areas != null && !areas.isEmpty()) {
-                System.out.println("\n序号  区域名称              最小境界  最大境界");
-                System.out.println("─────────────────────────────────────────────────");
+                System.out.println("\n序号  区域名称              最小境界  最大境界  危险度  消耗灵力  消耗体力");
+                System.out.println("────────────────────────────────────────────────────────────────────────");
                 for (int i = 0; i < areas.size(); i++) {
                     ExplorationAreaResponse a = areas.get(i);
-                    System.out.printf("%-4d  %-20s  %-8d  %-8d\n",
-                            i + 1, a.getAreaName(), a.getMinRealmLevel(), a.getMaxRealmLevel());
+                    String minRealm = a.getMinRealmLevel() != null ? String.valueOf(a.getMinRealmLevel()) : "无限制";
+                    String maxRealm = a.getMaxRealmLevel() != null ? String.valueOf(a.getMaxRealmLevel()) : "无限制";
+                    String danger = a.getDangerLevel() != null ? String.valueOf(a.getDangerLevel()) : "未知";
+                    String spiritCost = a.getSpiritCost() != null ? String.valueOf(a.getSpiritCost()) : "0";
+                    String staminaCost = a.getStaminaCost() != null ? String.valueOf(a.getStaminaCost()) : "10";
+
+                    System.out.printf("%-4d  %-20s  %-8s  %-8s  %-6s  %-8s  %-8s\n",
+                            i + 1, a.getAreaName(), minRealm, maxRealm, danger, spiritCost, staminaCost);
                 }
             } else {
                 System.out.println("\n暂无可探索的区域！");
@@ -2258,11 +2287,50 @@ public class XiuxianGameClient {
     }
 
     /**
+     * 显示探索区域列表（辅助方法，不暂停）
+     */
+    private static void showExplorationAreasList() throws IOException, InterruptedException {
+        String response = ApiClient.get("/exploration/areas/" + currentCharacterId);
+        Type listType = new TypeToken<List<ExplorationAreaResponse>>(){}.getType();
+
+        JsonObject jsonObject = gson.fromJson(response, JsonObject.class);
+        if (jsonObject.has("data") && jsonObject.get("data").isJsonArray()) {
+            JsonArray array = jsonObject.get("data").getAsJsonArray();
+            List<ExplorationAreaResponse> areas = gson.fromJson(array, listType);
+
+            if (areas != null && !areas.isEmpty()) {
+                System.out.println("\n可探索区域:");
+                System.out.println("┌────┬──────────────────┬──────────┬──────────┬──────┬──────────┬──────────┐");
+                System.out.println("│ ID │ 区域名称          │ 最小境界 │ 最大境界 │ 危险度│ 消耗灵力 │ 消耗体力 │");
+                System.out.println("├────┼──────────────────┼──────────┼──────────┼──────┼──────────┼──────────┤");
+                for (ExplorationAreaResponse a : areas) {
+                    String minRealm = a.getMinRealmLevel() != null ? String.valueOf(a.getMinRealmLevel()) : "无限制";
+                    String maxRealm = a.getMaxRealmLevel() != null ? String.valueOf(a.getMaxRealmLevel()) : "无限制";
+                    String danger = a.getDangerLevel() != null ? String.valueOf(a.getDangerLevel()) : "未知";
+                    String spiritCost = a.getSpiritCost() != null ? String.valueOf(a.getSpiritCost()) : "0";
+                    String staminaCost = a.getStaminaCost() != null ? String.valueOf(a.getStaminaCost()) : "10";
+
+                    System.out.printf("│ %2d │ %-16s │ %-8s │ %-8s │ %-4s │ %-8s │ %-8s │%n",
+                            a.getAreaId(), a.getAreaName(), minRealm, maxRealm, danger, spiritCost, staminaCost);
+                }
+                System.out.println("└────┴──────────────────┴──────────┴──────────┴──────┴──────────┴──────────┘");
+                System.out.println("\n💡 提示：输入区域ID开始探索（例如：输入1探索青云山脉）");
+            } else {
+                System.out.println("\n暂无可探索的区域！");
+            }
+        }
+    }
+
+    /**
      * 开始探索
      */
     private static void startExploration() throws IOException, InterruptedException {
         System.out.println("\n--- 开始探索 ---");
-        System.out.print("请输入区域ID: ");
+
+        // 先显示探索区域列表
+        showExplorationAreasList();
+
+        System.out.print("\n请输入区域ID: ");
         String areaIdStr = scanner.nextLine();
 
         try {
@@ -2280,19 +2348,281 @@ public class XiuxianGameClient {
                 System.out.println("事件类型: " + result.getEventType());
                 System.out.println("事件描述: " + result.getEventDescription());
 
-                if (result.getExpGained() > 0) {
-                    System.out.println("获得经验: " + result.getExpGained());
+                // 检查是否需要战斗
+                if (result.getNeedCombat() != null && result.getNeedCombat()) {
+                    System.out.println("\n⚔️  遭遇战斗: " + result.getMonsterName());
+                    System.out.println("准备战斗...");
+
+                    // 自动触发战斗
+                    startExplorationCombat(result.getMonsterId());
+                } else {
+                    // 非战斗事件，显示奖励和损失
+                    if (result.getExpGained() != null && result.getExpGained() > 0) {
+                        System.out.println("获得经验: " + result.getExpGained());
+                    }
+                    if (result.getSpiritualPowerGained() != null && result.getSpiritualPowerGained() > 0) {
+                        System.out.println("获得灵力: " + result.getSpiritualPowerGained());
+                    }
+                    if (result.getItemFound() != null && !result.getItemFound().isEmpty()) {
+                        System.out.println("获得物品: " + result.getItemFound());
+                    }
+                    if (result.getHealthLost() != null && result.getHealthLost() > 0) {
+                        System.out.println("损失生命: " + result.getHealthLost());
+                    }
                 }
-                if (result.getSpiritualPowerGained() > 0) {
-                    System.out.println("获得灵力: " + result.getSpiritualPowerGained());
+
+                // 显示资源消耗和剩余信息（无论是否战斗）
+                System.out.println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                System.out.println("资源消耗:");
+                if (result.getStaminaCost() != null && result.getStaminaCost() > 0) {
+                    System.out.printf("  💪 体力: -%d (剩余: %d)\n",
+                            result.getStaminaCost(),
+                            result.getStaminaRemaining() != null ? result.getStaminaRemaining() : 0);
                 }
-                if (result.getItemFound() != null) {
-                    System.out.println("获得物品: " + result.getItemFound());
-                }
-                if (result.getHealthLost() > 0) {
-                    System.out.println("损失生命: " + result.getHealthLost());
+                if (result.getSpiritCost() != null && result.getSpiritCost() > 0) {
+                    System.out.printf("  ✨ 灵力: -%d (剩余: %d)\n",
+                            result.getSpiritCost(),
+                            result.getSpiritRemaining() != null ? result.getSpiritRemaining() : 0);
                 }
             }
+        } catch (NumberFormatException e) {
+            System.out.println("\n❌ 无效的区域ID！");
+        }
+
+        pressEnterToContinue();
+    }
+
+    /**
+     * 探索战斗（通过monsterId直接启动战斗）
+     */
+    private static void startExplorationCombat(Long monsterId) throws IOException, InterruptedException {
+        try {
+            JsonObject request = new JsonObject();
+            request.addProperty("characterId", currentCharacterId);
+            request.addProperty("monsterId", monsterId);
+
+            String response = ApiClient.post("/combat/start", request);
+            CombatResponse result = ApiClient.parseResponse(response, CombatResponse.class);
+
+            if (result != null) {
+                // 显示战斗日志
+                if (result.getCombatLog() != null && !result.getCombatLog().isEmpty()) {
+                    System.out.println("\n=== 战斗过程 ===");
+                    for (String log : result.getCombatLog()) {
+                        System.out.println(log);
+                    }
+                }
+
+                if (result.isVictory()) {
+                    System.out.println("\n✅ 战斗胜利！");
+                    System.out.println("获得经验: " + result.getExpGained());
+                    System.out.println("获得灵石: " + result.getSpiritStonesGained());
+                    if (result.getItemsDropped() != null && !result.getItemsDropped().isEmpty()) {
+                        System.out.println("掉落物品: " + String.join(", ", result.getItemsDropped()));
+                    }
+                } else {
+                    System.out.println("\n❌ 战斗失败！");
+                    System.out.println("剩余生命: " + result.getCharacterHpRemaining());
+                }
+            } else {
+                System.out.println("\n❌ 战斗失败！可能原因：");
+                System.out.println("  1. 妖兽ID不存在");
+                System.out.println("  2. 体力不足");
+                System.out.println("  3. 角色状态不允许战斗");
+            }
+        } catch (Exception e) {
+            System.out.println("\n❌ 战斗出错: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * 批量探索
+     */
+    private static void startBatchExploration() throws IOException, InterruptedException {
+        System.out.println("\n--- 🔄 批量探索 ---");
+
+        // 先显示探索区域列表
+        showExplorationAreasList();
+
+        System.out.print("\n请输入要探索的区域ID: ");
+        String areaIdStr = scanner.nextLine();
+
+        try {
+            Long areaId = Long.parseLong(areaIdStr);
+
+            System.out.print("\n请输入探索次数 (1-100, 直接回车默认10次): ");
+            String maxTimesStr = scanner.nextLine();
+            int maxTimes = 10; // 默认10次
+            if (!maxTimesStr.isEmpty()) {
+                try {
+                    maxTimes = Integer.parseInt(maxTimesStr);
+                    if (maxTimes < 1) maxTimes = 1;
+                    if (maxTimes > 100) maxTimes = 100;
+                } catch (NumberFormatException e) {
+                    System.out.println("输入无效，使用默认值10次");
+                }
+            }
+
+            System.out.println("\n开始批量探索，目标次数: " + maxTimes);
+            System.out.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+            // 统计数据
+            int totalExp = 0;
+            int totalItems = 0;
+            int totalStaminaCost = 0;
+            int totalSpiritCost = 0;
+            int totalSpiritStonesCost = 0;
+            int combatCount = 0;
+            int victoryCount = 0;
+            int defeatCount = 0;
+            Integer finalStaminaRemaining = null;
+            Integer finalSpiritRemaining = null;
+
+            boolean shouldContinue = true;
+
+            for (int i = 1; i <= maxTimes && shouldContinue; i++) {
+                System.out.printf("\n【第 %d/%d 次探索】\n", i, maxTimes);
+
+                JsonObject request = new JsonObject();
+                request.addProperty("characterId", currentCharacterId);
+                request.addProperty("areaId", areaId);
+
+                try {
+                    String response = ApiClient.post("/exploration/start", request);
+                    ExplorationResponse result = ApiClient.parseResponse(response, ExplorationResponse.class);
+
+                    if (result != null) {
+                        // 显示事件信息
+                        System.out.println("事件: " + result.getEventType());
+                        if (result.getEventDescription() != null) {
+                            System.out.println("描述: " + result.getEventDescription());
+                        }
+
+                        // 累计统计数据
+                        if (result.getExpGained() != null) {
+                            totalExp += result.getExpGained();
+                        }
+                        if (result.getStaminaCost() != null) {
+                            totalStaminaCost += result.getStaminaCost();
+                        }
+                        if (result.getSpiritCost() != null) {
+                            totalSpiritCost += result.getSpiritCost();
+                        }
+
+                        // 检查是否需要战斗
+                        if (result.getNeedCombat() != null && result.getNeedCombat()) {
+                            combatCount++;
+                            System.out.println("⚔️  遭遇战斗: " + result.getMonsterName());
+
+                            // 进行战斗
+                            JsonObject combatRequest = new JsonObject();
+                            combatRequest.addProperty("characterId", currentCharacterId);
+                            combatRequest.addProperty("monsterId", result.getMonsterId());
+
+                            String combatResponse = ApiClient.post("/combat/start", combatRequest);
+                            CombatResponse combatResult = ApiClient.parseResponse(combatResponse, CombatResponse.class);
+
+                            if (combatResult != null) {
+                                if (combatResult.isVictory()) {
+                                    victoryCount++;
+                                    totalExp += combatResult.getExpGained();
+                                    // 统计灵石消耗
+                                    if (combatResult.getSpiritStonesGained() != null && combatResult.getSpiritStonesGained() < 0) {
+                                        totalSpiritStonesCost += Math.abs(combatResult.getSpiritStonesGained());
+                                    }
+                                    System.out.println("  ✅ 战斗胜利！获得经验: " + combatResult.getExpGained());
+
+                                    if (combatResult.getItemsDropped() != null && !combatResult.getItemsDropped().isEmpty()) {
+                                        totalItems += combatResult.getItemsDropped().size();
+                                        System.out.println("  📦 掉落: " + String.join(", ", combatResult.getItemsDropped()));
+                                    }
+                                } else {
+                                    defeatCount++;
+                                    System.out.println("  ❌ 战斗失败！剩余生命: " + combatResult.getCharacterHpRemaining());
+                                    // 战斗失败，退出批量探索
+                                    System.out.println("\n⚠️  战斗失败，停止批量探索");
+                                    shouldContinue = false;
+                                }
+                            }
+                        } else {
+                            // 非战斗事件
+                            if (result.getExpGained() != null && result.getExpGained() > 0) {
+                                System.out.println("  ⭐ 获得经验: " + result.getExpGained());
+                            }
+                            if (result.getItemFound() != null && !result.getItemFound().isEmpty()) {
+                                totalItems++;
+                                System.out.println("  📦 获得物品: " + result.getItemFound());
+                            }
+                            if (result.getHealthLost() != null && result.getHealthLost() > 0) {
+                                System.out.println("  💔 损失生命: " + result.getHealthLost());
+                            }
+                        }
+
+                        // 显示剩余资源
+                        if (result.getStaminaRemaining() != null) {
+                            finalStaminaRemaining = result.getStaminaRemaining();
+                            System.out.printf("  💪 剩余体力: %d", result.getStaminaRemaining());
+                            // 检查体力是否不足（假设不足10次就退出）
+                            if (result.getStaminaRemaining() < result.getStaminaCost()) {
+                                System.out.println(" (⚠️ 体力不足)");
+                                shouldContinue = false;
+                            } else {
+                                System.out.println();
+                            }
+                        }
+
+                        if (result.getSpiritRemaining() != null) {
+                            finalSpiritRemaining = result.getSpiritRemaining();
+                            System.out.printf("  ✨ 剩余灵力: %d", result.getSpiritRemaining());
+                            // 检查灵力是否不足
+                            if (result.getSpiritRemaining() < result.getSpiritCost()) {
+                                System.out.println(" (⚠️ 灵力不足)");
+                                shouldContinue = false;
+                            } else {
+                                System.out.println();
+                            }
+                        }
+                    } else {
+                        System.out.println("❌ 探索失败，停止批量探索");
+                        shouldContinue = false;
+                    }
+                } catch (Exception e) {
+                    System.out.println("❌ 探索出错: " + e.getMessage());
+                    shouldContinue = false;
+                }
+
+                // 短暂延迟，避免请求过快
+                if (shouldContinue && i < maxTimes) {
+                    Thread.sleep(500);
+                }
+            }
+
+            // 显示最终统计
+            System.out.println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            System.out.println("📊 批量探索统计");
+            System.out.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            System.out.printf("探索次数: %d/%d\n", (shouldContinue ? maxTimes : maxTimes - 1), maxTimes);
+            System.out.printf("战斗次数: %d (胜利: %d, 失败: %d)\n", combatCount, victoryCount, defeatCount);
+            System.out.println("\n💰 探索收获:");
+            System.out.printf("  总经验: %d\n", totalExp);
+            System.out.printf("  总物品: %d\n", totalItems);
+            System.out.println("\n📉 资源消耗:");
+            System.out.printf("  总体力: %d", totalStaminaCost);
+            if (finalStaminaRemaining != null) {
+                System.out.printf(" (剩余: %d)\n", finalStaminaRemaining);
+            } else {
+                System.out.println();
+            }
+            System.out.printf("  总灵力: %d", totalSpiritCost);
+            if (finalSpiritRemaining != null) {
+                System.out.printf(" (剩余: %d)\n", finalSpiritRemaining);
+            } else {
+                System.out.println();
+            }
+            System.out.printf("  总灵石: %d\n", totalSpiritStonesCost);
+            System.out.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
         } catch (NumberFormatException e) {
             System.out.println("\n❌ 无效的区域ID！");
         }
